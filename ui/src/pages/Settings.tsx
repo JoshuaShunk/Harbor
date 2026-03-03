@@ -1,9 +1,45 @@
 import { useEffect, useState } from "react";
-import { Trash2, Shield, Globe, FolderCog, Info, RefreshCw, ArrowDownCircle, CheckCircle2, AlertCircle, Loader2, Anchor, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, Shield, Globe, FolderCog, Info, RefreshCw, ArrowDownCircle, CheckCircle2, AlertCircle, Loader2, Anchor, ChevronDown, ChevronUp, Sun, Moon, Monitor } from "lucide-react";
 import { getStatus, vaultSet, vaultDelete, vaultList, oauthListProviders, oauthRevokeCharter, oauthSetCustomCredentials, type HarborStatus, type OAuthProviderInfo } from "../lib/tauri";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
 import { useUpdate } from "../contexts/UpdateContext";
+import { useTheme, type ThemeChoice } from "../contexts/ThemeContext";
+
+const themeOptions: { value: ThemeChoice; label: string; icon: typeof Sun }[] = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
+];
+
+function AppearanceSection() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <section className="p-4 rounded-lg bg-bg-element border border-border-subtle">
+      <div className="flex items-center gap-2 mb-3">
+        <Sun className="w-4 h-4 text-text-muted" />
+        <h2 className="text-[13px] font-medium text-text-primary">Appearance</h2>
+      </div>
+      <div className="flex gap-2">
+        {themeOptions.map(({ value, label, icon: Icon }) => (
+          <button
+            key={value}
+            onClick={() => setTheme(value)}
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-[12px] font-medium border transition-colors duration-150 ${
+              theme === value
+                ? "bg-accent-muted border-accent text-accent"
+                : "bg-bg-app border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover"
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function Settings() {
   const [status, setStatus] = useState<HarborStatus | null>(null);
@@ -112,6 +148,9 @@ function Settings() {
       </div>
 
       <div className="space-y-4">
+        {/* Appearance */}
+        <AppearanceSection />
+
         {/* Gateway */}
         <section className="p-4 rounded-lg bg-bg-element border border-border-subtle">
           <div className="flex items-center gap-2 mb-3">

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { UpdateProvider } from "./contexts/UpdateContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 import Layout from "./components/Layout";
 import Servers from "./pages/Servers";
 import Hosts from "./pages/Hosts";
@@ -8,6 +9,7 @@ import Marketplace from "./pages/Marketplace";
 
 function App() {
   return (
+    <ThemeProvider>
     <UpdateProvider>
       <BrowserRouter>
         <Routes>
@@ -21,6 +23,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </UpdateProvider>
+    </ThemeProvider>
   );
 }
 

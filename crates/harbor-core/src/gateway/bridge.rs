@@ -183,15 +183,5 @@ impl Default for BridgeManager {
 }
 
 fn resolve_env(env: &BTreeMap<String, String>) -> BTreeMap<String, String> {
-    env.iter()
-        .map(|(key, value)| {
-            let resolved = if value.starts_with("vault:") {
-                let vault_key = &value[6..];
-                std::env::var(vault_key).unwrap_or_default()
-            } else {
-                value.clone()
-            };
-            (key.clone(), resolved)
-        })
-        .collect()
+    crate::auth::vault::Vault::resolve_env(env)
 }

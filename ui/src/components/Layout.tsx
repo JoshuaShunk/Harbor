@@ -104,7 +104,7 @@ function Layout() {
         )}
 
         {/* Version footer */}
-        <div className="px-5 py-3 border-t border-border-subtle">
+        <div className="px-5 py-3">
           <span className="text-[11px] text-text-muted">Harbor v{currentVersion}</span>
         </div>
       </nav>

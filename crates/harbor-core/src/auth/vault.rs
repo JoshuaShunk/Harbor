@@ -3,55 +3,44 @@ use std::collections::BTreeMap;
 use tracing::{info, warn};
 
 const SERVICE_NAME: &str = "harbor";
-const KEYS_INDEX_KEY: &str = "_harbor_vault_keys";
+/// Single keychain entry holding all secrets as a JSON object.
+const STORE_KEY: &str = "_harbor_vault_store";
 
 /// Encrypted secret storage using OS keychain with env-var fallback.
 ///
-/// Stores secrets in the OS keychain (macOS Keychain, Windows Credential Manager,
-/// Linux Secret Service). A key index is maintained as a comma-separated list
-/// stored under a special key so we can enumerate stored secrets.
+/// All secrets are stored in a **single** keychain entry as a JSON blob
+/// (`{"key": "value", ...}`). This means only one OS keychain prompt
+/// is required after an app update changes the binary signature.
 pub struct Vault;
 
 impl Vault {
+    // ── Core CRUD ──────────────────────────────────────────────
+
     /// Store a secret in the vault.
     pub fn set(key: &str, value: &str) -> Result<()> {
-        let entry = keyring::Entry::new(SERVICE_NAME, key)
-            .map_err(|e| HarborError::VaultError(format!("Failed to create keyring entry: {e}")))?;
-
-        // On macOS, set_password can fail with "already exists" if the entry
-        // was created with different attributes.  Delete first, then retry.
-        if let Err(e) = entry.set_password(value) {
-            let _ = entry.delete_credential();
-            entry.set_password(value).map_err(|e2| {
-                HarborError::VaultError(format!(
-                    "Failed to store secret '{key}' (even after delete): {e2} (original: {e})"
-                ))
-            })?;
-        }
-
-        // Update the key index
-        let mut keys = Self::list_keys().unwrap_or_default();
-        if !keys.contains(&key.to_string()) {
-            keys.push(key.to_string());
-            Self::save_key_index(&keys)?;
-        }
-
+        let mut store = Self::read_store()?;
+        store.insert(key.to_string(), value.to_string());
+        Self::write_store(&store)?;
         info!(key = key, "Secret stored in vault");
         Ok(())
     }
 
     /// Retrieve a secret from the vault. Falls back to OS environment variable.
     pub fn get(key: &str) -> Result<String> {
-        // Try keyring first
-        let entry = keyring::Entry::new(SERVICE_NAME, key)
-            .map_err(|e| HarborError::VaultError(format!("Failed to create keyring entry: {e}")))?;
+        let mut store = Self::read_store()?;
 
-        match entry.get_password() {
-            Ok(value) => return Ok(value),
-            Err(keyring::Error::NoEntry) => {}
-            Err(e) => {
-                warn!(key = key, error = %e, "Keyring lookup failed, trying env var fallback");
-            }
+        // Fast path: key is in the consolidated store
+        if let Some(value) = store.get(key) {
+            return Ok(value.clone());
+        }
+
+        // Lazy migration: try legacy per-key keychain entry
+        if let Some(value) = Self::try_legacy_get(key) {
+            store.insert(key.to_string(), value.clone());
+            let _ = Self::write_store(&store); // best-effort migrate
+            let _ = Self::try_legacy_delete(key); // clean up old entry
+            info!(key = key, "Migrated legacy vault entry to consolidated store");
+            return Ok(value);
         }
 
         // Fallback to OS environment variable
@@ -64,52 +53,24 @@ impl Vault {
 
     /// Delete a secret from the vault.
     pub fn delete(key: &str) -> Result<()> {
-        let entry = keyring::Entry::new(SERVICE_NAME, key)
-            .map_err(|e| HarborError::VaultError(format!("Failed to create keyring entry: {e}")))?;
-
-        match entry.delete_credential() {
-            Ok(()) => {}
-            Err(keyring::Error::NoEntry) => {
-                return Err(HarborError::VaultError(format!(
-                    "Secret '{key}' not found in vault"
-                )));
-            }
-            Err(e) => {
-                return Err(HarborError::VaultError(format!(
-                    "Failed to delete secret '{key}': {e}"
-                )));
-            }
+        let mut store = Self::read_store()?;
+        if store.remove(key).is_none() {
+            return Err(HarborError::VaultError(format!(
+                "Secret '{key}' not found in vault"
+            )));
         }
-
-        // Update key index
-        let mut keys = Self::list_keys().unwrap_or_default();
-        keys.retain(|k| k != key);
-        Self::save_key_index(&keys)?;
-
+        Self::write_store(&store)?;
         info!(key = key, "Secret deleted from vault");
         Ok(())
     }
 
     /// List all stored secret keys (not values).
     pub fn list_keys() -> Result<Vec<String>> {
-        let entry = keyring::Entry::new(SERVICE_NAME, KEYS_INDEX_KEY)
-            .map_err(|e| HarborError::VaultError(format!("Failed to read key index: {e}")))?;
-
-        match entry.get_password() {
-            Ok(csv) => {
-                let keys: Vec<String> = csv
-                    .split(',')
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string())
-                    .collect();
-                Ok(keys)
-            }
-            Err(keyring::Error::NoEntry) => Ok(Vec::new()),
-            Err(e) => Err(HarborError::VaultError(format!(
-                "Failed to read key index: {e}"
-            ))),
-        }
+        let store = Self::read_store()?;
+        Ok(store.keys().cloned().collect())
     }
+
+    // ── Resolution helpers ─────────────────────────────────────
 
     /// Resolve a `vault:KEY_NAME` reference to its actual value.
     pub fn resolve(reference: &str) -> Result<String> {
@@ -137,13 +98,60 @@ impl Vault {
             .collect()
     }
 
-    fn save_key_index(keys: &[String]) -> Result<()> {
-        let csv = keys.join(",");
-        let entry = keyring::Entry::new(SERVICE_NAME, KEYS_INDEX_KEY)
-            .map_err(|e| HarborError::VaultError(format!("Failed to create key index entry: {e}")))?;
-        entry
-            .set_password(&csv)
-            .map_err(|e| HarborError::VaultError(format!("Failed to save key index: {e}")))?;
+    // ── Internal: consolidated store ───────────────────────────
+
+    /// Read the entire secret store from the single keychain entry.
+    fn read_store() -> Result<BTreeMap<String, String>> {
+        let entry = keyring::Entry::new(SERVICE_NAME, STORE_KEY)
+            .map_err(|e| HarborError::VaultError(format!("Failed to create keyring entry: {e}")))?;
+
+        match entry.get_password() {
+            Ok(json) => {
+                let store: BTreeMap<String, String> =
+                    serde_json::from_str(&json).unwrap_or_default();
+                Ok(store)
+            }
+            Err(keyring::Error::NoEntry) => Ok(BTreeMap::new()),
+            Err(e) => {
+                warn!(error = %e, "Failed to read vault store from keychain");
+                Ok(BTreeMap::new())
+            }
+        }
+    }
+
+    /// Write the entire secret store back to the single keychain entry.
+    fn write_store(store: &BTreeMap<String, String>) -> Result<()> {
+        let json = serde_json::to_string(store)
+            .map_err(|e| HarborError::VaultError(format!("Failed to serialize vault: {e}")))?;
+
+        let entry = keyring::Entry::new(SERVICE_NAME, STORE_KEY)
+            .map_err(|e| HarborError::VaultError(format!("Failed to create keyring entry: {e}")))?;
+
+        // On macOS, set_password can fail with "already exists" if the entry
+        // was created with different attributes.  Delete first, then retry.
+        if let Err(e) = entry.set_password(&json) {
+            let _ = entry.delete_credential();
+            entry.set_password(&json).map_err(|e2| {
+                HarborError::VaultError(format!(
+                    "Failed to write vault store (even after delete): {e2} (original: {e})"
+                ))
+            })?;
+        }
+
         Ok(())
+    }
+
+    // ── Internal: legacy migration helpers ─────────────────────
+
+    /// Try to read a key from the old per-key keychain format.
+    fn try_legacy_get(key: &str) -> Option<String> {
+        let entry = keyring::Entry::new(SERVICE_NAME, key).ok()?;
+        entry.get_password().ok()
+    }
+
+    /// Try to delete a key from the old per-key keychain format.
+    fn try_legacy_delete(key: &str) -> Option<()> {
+        let entry = keyring::Entry::new(SERVICE_NAME, key).ok()?;
+        entry.delete_credential().ok()
     }
 }
