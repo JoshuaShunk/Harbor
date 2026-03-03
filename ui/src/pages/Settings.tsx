@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { Trash2, Shield, Globe, FolderCog, Info, RefreshCw, ArrowDownCircle, CheckCircle2, AlertCircle, Loader2, Anchor, ChevronDown, ChevronUp, Sun, Moon, Monitor } from "lucide-react";
-import logo from "../assets/logo.png";
-import logoDark from "../assets/logo-dark.png";
 import { getStatus, vaultSet, vaultDelete, vaultList, oauthListProviders, oauthRevokeCharter, oauthSetCustomCredentials, type HarborStatus, type OAuthProviderInfo } from "../lib/tauri";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
@@ -63,7 +61,6 @@ function Settings() {
     checkForUpdate,
     downloadAndInstall,
   } = useUpdate();
-  const { resolved } = useTheme();
 
   useEffect(() => {
     getStatus().then(setStatus).catch(() => {});
@@ -192,9 +189,6 @@ function Settings() {
 
         {/* Updates — Dry Dock */}
         <section className="p-4 rounded-lg bg-bg-element border border-border-subtle">
-          <div className="flex justify-center mb-4">
-            <img src={resolved === "dark" ? logoDark : logo} alt="Harbor" className="h-12 w-auto" />
-          </div>
           <div className="flex items-center gap-2 mb-3">
             <RefreshCw className="w-4 h-4 text-text-muted" />
             <h2 className="text-[13px] font-medium text-text-primary">Dry Dock</h2>
