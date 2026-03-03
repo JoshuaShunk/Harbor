@@ -1,6 +1,10 @@
 <p align="center">
   <a href="https://harbormcp.ai">
-    <img src="ui/src/assets/logo.png" height="120" alt="Harbor">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.png">
+      <source media="(prefers-color-scheme: light)" srcset="ui/src/assets/logo.png">
+      <img src="ui/src/assets/logo.png" height="120" alt="Harbor">
+    </picture>
   </a>
 </p>
 
