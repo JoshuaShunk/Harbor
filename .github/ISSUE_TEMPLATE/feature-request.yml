@@ -1,0 +1,45 @@
+name: Feature Request
+description: Suggest a new feature for Harbor
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea for Harbor? We'd love to hear it.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this feature solve? What's the use case?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any other approaches you've thought about?
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of Harbor does this relate to?
+      options:
+        - Desktop App
+        - CLI
+        - Gateway
+        - Sync / Connectors
+        - Marketplace
+        - Vault
+        - New Host Support
+        - Other
