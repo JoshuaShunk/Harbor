@@ -275,9 +275,7 @@ async fn handle_sse(
         "tool_count": tools.len(),
     });
 
-    let initial_event = Event::default()
-        .event("status")
-        .data(initial.to_string());
+    let initial_event = Event::default().event("status").data(initial.to_string());
 
     Sse::new(stream::once(async move { Ok(initial_event) })).keep_alive(KeepAlive::default())
 }

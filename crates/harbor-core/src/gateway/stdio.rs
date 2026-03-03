@@ -78,7 +78,11 @@ pub struct StdioBridge {
 
 impl StdioBridge {
     /// Spawn a new MCP server process and set up the stdio bridge.
-    pub async fn spawn(name: &str, config: &ServerConfig, resolved_env: &BTreeMap<String, String>) -> Result<Self> {
+    pub async fn spawn(
+        name: &str,
+        config: &ServerConfig,
+        resolved_env: &BTreeMap<String, String>,
+    ) -> Result<Self> {
         info!(server = name, command = %config.command, "Spawning stdio bridge");
 
         let mut cmd = Command::new(&config.command);
@@ -96,20 +100,29 @@ impl StdioBridge {
             reason: e.to_string(),
         })?;
 
-        let stdin = child.stdin.take().ok_or_else(|| HarborError::ServerStartFailed {
-            name: name.to_string(),
-            reason: "Failed to capture stdin".to_string(),
-        })?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| HarborError::ServerStartFailed {
+                name: name.to_string(),
+                reason: "Failed to capture stdin".to_string(),
+            })?;
 
-        let stdout = child.stdout.take().ok_or_else(|| HarborError::ServerStartFailed {
-            name: name.to_string(),
-            reason: "Failed to capture stdout".to_string(),
-        })?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| HarborError::ServerStartFailed {
+                name: name.to_string(),
+                reason: "Failed to capture stdout".to_string(),
+            })?;
 
-        let stderr = child.stderr.take().ok_or_else(|| HarborError::ServerStartFailed {
-            name: name.to_string(),
-            reason: "Failed to capture stderr".to_string(),
-        })?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| HarborError::ServerStartFailed {
+                name: name.to_string(),
+                reason: "Failed to capture stderr".to_string(),
+            })?;
 
         let pending: Arc<Mutex<HashMap<RequestId, oneshot::Sender<JsonRpcResponse>>>> =
             Arc::new(Mutex::new(HashMap::new()));
@@ -192,18 +205,20 @@ impl StdioBridge {
 
         {
             let mut stdin = self.stdin.lock().await;
-            stdin.write_all(line.as_bytes()).await.map_err(|e| {
-                HarborError::ServerStartFailed {
+            stdin
+                .write_all(line.as_bytes())
+                .await
+                .map_err(|e| HarborError::ServerStartFailed {
                     name: self.name.clone(),
                     reason: format!("Failed to write to stdin: {e}"),
-                }
-            })?;
-            stdin.flush().await.map_err(|e| {
-                HarborError::ServerStartFailed {
+                })?;
+            stdin
+                .flush()
+                .await
+                .map_err(|e| HarborError::ServerStartFailed {
                     name: self.name.clone(),
                     reason: format!("Failed to flush stdin: {e}"),
-                }
-            })?;
+                })?;
         }
 
         // Wait for response (with timeout)
@@ -293,7 +308,11 @@ impl StdioBridge {
     }
 
     /// Call a tool on this MCP server.
-    pub async fn call_tool(&self, tool_name: &str, arguments: serde_json::Value) -> Result<JsonRpcResponse> {
+    pub async fn call_tool(
+        &self,
+        tool_name: &str,
+        arguments: serde_json::Value,
+    ) -> Result<JsonRpcResponse> {
         let request = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             id: Some(serde_json::json!(uuid::Uuid::new_v4().to_string())),

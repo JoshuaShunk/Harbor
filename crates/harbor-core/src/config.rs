@@ -84,10 +84,8 @@ pub struct HostConfig {
 impl HarborConfig {
     /// Returns the default config directory: ~/.harbor/
     pub fn default_dir() -> Result<PathBuf> {
-        let home = dirs::home_dir().ok_or_else(|| {
-            HarborError::ConfigNotFound {
-                path: PathBuf::from("~/.harbor"),
-            }
+        let home = dirs::home_dir().ok_or_else(|| HarborError::ConfigNotFound {
+            path: PathBuf::from("~/.harbor"),
         })?;
         Ok(home.join(".harbor"))
     }
@@ -142,16 +140,20 @@ impl HarborConfig {
 
     /// Remove a server from the config
     pub fn remove_server(&mut self, name: &str) -> Result<ServerConfig> {
-        self.servers.remove(name).ok_or_else(|| HarborError::ServerNotFound {
-            name: name.to_string(),
-        })
+        self.servers
+            .remove(name)
+            .ok_or_else(|| HarborError::ServerNotFound {
+                name: name.to_string(),
+            })
     }
 
     /// Get a server config by name
     pub fn get_server(&self, name: &str) -> Result<&ServerConfig> {
-        self.servers.get(name).ok_or_else(|| HarborError::ServerNotFound {
-            name: name.to_string(),
-        })
+        self.servers
+            .get(name)
+            .ok_or_else(|| HarborError::ServerNotFound {
+                name: name.to_string(),
+            })
     }
 
     /// Check if a server is enabled for a specific host

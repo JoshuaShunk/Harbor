@@ -56,15 +56,17 @@ pub async fn run(args: ListArgs) -> Result<(), HarborError> {
         };
 
         println!("  {} [{}]", name.cyan().bold(), status);
-        println!(
-            "    command: {} {}",
-            server.command,
-            server.args.join(" ")
-        );
+        println!("    command: {} {}", server.command, server.args.join(" "));
 
         if !server.env.is_empty() {
             let keys: Vec<&String> = server.env.keys().collect();
-            println!("    env:     {}", keys.iter().map(|k| k.as_str()).collect::<Vec<_>>().join(", "));
+            println!(
+                "    env:     {}",
+                keys.iter()
+                    .map(|k| k.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
         }
 
         if server.auto_start {

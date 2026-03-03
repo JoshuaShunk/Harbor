@@ -40,7 +40,11 @@ pub async fn run(args: VaultArgs) -> Result<(), HarborError> {
     match args.command {
         VaultCommand::Stow { key, value } => {
             Vault::set(&key, &value)?;
-            println!("{} Secret '{}' stowed in the chest", "ok:".green().bold(), key);
+            println!(
+                "{} Secret '{}' stowed in the chest",
+                "ok:".green().bold(),
+                key
+            );
         }
         VaultCommand::Retrieve { key } => match Vault::get(&key) {
             Ok(value) => println!("{}", value),
@@ -62,10 +66,7 @@ pub async fn run(args: VaultArgs) -> Result<(), HarborError> {
                 for key in &keys {
                     println!("  {}", key);
                 }
-                println!(
-                    "\n{} secret(s) stowed",
-                    keys.len().to_string().cyan()
-                );
+                println!("\n{} secret(s) stowed", keys.len().to_string().cyan());
             }
         }
     }

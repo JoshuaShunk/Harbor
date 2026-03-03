@@ -72,7 +72,10 @@ fn sync_to_host(config: &HarborConfig, host_name: &str, dry_run: bool) -> Result
 
     // Refresh Google Drive credential files if any gdrive server is present
     for (_name, server_config) in &servers {
-        if server_config.env.values().any(|v| v.contains("GDRIVE_CREDENTIALS_PATH") || v.contains("gdrive"))
+        if server_config
+            .env
+            .values()
+            .any(|v| v.contains("GDRIVE_CREDENTIALS_PATH") || v.contains("gdrive"))
             || server_config.args.iter().any(|a| a.contains("gdrive"))
         {
             let _ = harbor_core::auth::oauth::write_gdrive_credentials();

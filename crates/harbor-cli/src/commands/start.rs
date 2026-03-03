@@ -17,11 +17,7 @@ pub async fn run(args: StartArgs) -> Result<(), HarborError> {
         Some(name) => {
             let server_config = config.get_server(&name)?;
             manager.start(&name, server_config).await?;
-            println!(
-                "{} Server '{}' launched",
-                "ok:".green().bold(),
-                name.cyan()
-            );
+            println!("{} Server '{}' launched", "ok:".green().bold(), name.cyan());
 
             // Keep the process alive until Ctrl+C
             println!("Press Ctrl+C to drop anchor");
@@ -47,11 +43,7 @@ pub async fn run(args: StartArgs) -> Result<(), HarborError> {
 
             for (name, server_config) in &auto_start {
                 match manager.start(name, server_config).await {
-                    Ok(()) => println!(
-                        "{} Launched '{}'",
-                        "ok:".green().bold(),
-                        name.cyan()
-                    ),
+                    Ok(()) => println!("{} Launched '{}'", "ok:".green().bold(), name.cyan()),
                     Err(e) => eprintln!(
                         "{} Failed to launch '{}': {}",
                         "err:".red().bold(),

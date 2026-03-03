@@ -51,6 +51,12 @@ struct ClaudeServerEntry {
     env: BTreeMap<String, String>,
 }
 
+impl Default for ClaudeConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ClaudeConnector {
     pub fn new() -> Self {
         Self {
@@ -91,12 +97,11 @@ impl Connector for ClaudeConnector {
         }
 
         let content = std::fs::read_to_string(&path).map_err(HarborError::Io)?;
-        let config: ClaudeConfig = serde_json::from_str(&content).map_err(|e| {
-            HarborError::ConnectorError {
+        let config: ClaudeConfig =
+            serde_json::from_str(&content).map_err(|e| HarborError::ConnectorError {
                 host: "claude".to_string(),
                 reason: format!("Failed to parse {}: {}", path.display(), e),
-            }
-        })?;
+            })?;
 
         let servers = config
             .mcp_servers

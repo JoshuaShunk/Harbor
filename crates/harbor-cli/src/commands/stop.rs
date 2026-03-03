@@ -17,9 +17,7 @@ pub async fn run(args: StopArgs) -> Result<(), HarborError> {
         "info:".blue().bold(),
         args.name.cyan()
     );
-    println!(
-        "  Daemon mode (background fleet management) is coming in a future release."
-    );
+    println!("  Daemon mode (background fleet management) is coming in a future release.");
 
     Ok(())
 }

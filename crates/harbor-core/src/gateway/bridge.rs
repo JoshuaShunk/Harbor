@@ -57,8 +57,14 @@ impl BridgeManager {
             if let Some(tools) = result.get("tools").and_then(|t| t.as_array()) {
                 let mut cache = self.tool_cache.lock().await;
                 for tool in tools {
-                    let tool_name = tool.get("name").and_then(|n| n.as_str()).unwrap_or("unknown");
-                    let description = tool.get("description").and_then(|d| d.as_str()).map(String::from);
+                    let tool_name = tool
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("unknown");
+                    let description = tool
+                        .get("description")
+                        .and_then(|d| d.as_str())
+                        .map(String::from);
                     let input_schema = tool.get("inputSchema").cloned();
 
                     cache.push(ToolInfo {
@@ -79,9 +85,11 @@ impl BridgeManager {
     /// Stop a server bridge.
     pub async fn stop_server(&self, name: &str) -> Result<()> {
         let mut bridges = self.bridges.lock().await;
-        let bridge = bridges.remove(name).ok_or_else(|| HarborError::ServerNotRunning {
-            name: name.to_string(),
-        })?;
+        let bridge = bridges
+            .remove(name)
+            .ok_or_else(|| HarborError::ServerNotRunning {
+                name: name.to_string(),
+            })?;
 
         bridge.shutdown().await?;
 
@@ -149,9 +157,11 @@ impl BridgeManager {
         })?;
 
         let bridges = self.bridges.lock().await;
-        let bridge = bridges.get(&server_name).ok_or_else(|| HarborError::ServerNotRunning {
-            name: server_name.clone(),
-        })?;
+        let bridge = bridges
+            .get(&server_name)
+            .ok_or_else(|| HarborError::ServerNotRunning {
+                name: server_name.clone(),
+            })?;
 
         bridge.call_tool(tool_name, arguments).await
     }
@@ -163,9 +173,11 @@ impl BridgeManager {
         request: crate::gateway::stdio::JsonRpcRequest,
     ) -> Result<JsonRpcResponse> {
         let bridges = self.bridges.lock().await;
-        let bridge = bridges.get(server_name).ok_or_else(|| HarborError::ServerNotRunning {
-            name: server_name.to_string(),
-        })?;
+        let bridge = bridges
+            .get(server_name)
+            .ok_or_else(|| HarborError::ServerNotRunning {
+                name: server_name.to_string(),
+            })?;
 
         bridge.send(request).await
     }

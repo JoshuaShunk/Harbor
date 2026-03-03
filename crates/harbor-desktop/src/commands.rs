@@ -124,16 +124,14 @@ pub fn add_server(
                 hosts: BTreeMap::new(),
             };
             config.add_server(name, server).map_err(|e| e.to_string())
-        })?
-        .map_err(|e| e)?;
+        })??;
     Ok(())
 }
 
 #[tauri::command]
 pub fn remove_server(state: tauri::State<AppState>, name: String) -> Result<(), String> {
     state
-        .with_config_mut(|config| config.remove_server(&name).map_err(|e| e.to_string()))?
-        .map_err(|e| e)?;
+        .with_config_mut(|config| config.remove_server(&name).map_err(|e| e.to_string()))??;
     Ok(())
 }
 
@@ -151,8 +149,7 @@ pub fn toggle_server(
             } else {
                 Err(format!("Server '{name}' not found"))
             }
-        })?
-        .map_err(|e| e)?;
+        })??;
     Ok(())
 }
 
@@ -440,13 +437,10 @@ pub async fn oauth_start_charter(
 
     // Wait for callback (5 minute timeout)
     let port = callback_server.port;
-    let code = tokio::time::timeout(
-        std::time::Duration::from_secs(300),
-        callback_server.code_rx,
-    )
-    .await
-    .map_err(|_| "Charter timed out. The authorization window was open too long.".to_string())?
-    .map_err(|_| "Charter cancelled.".to_string())?;
+    let code = tokio::time::timeout(std::time::Duration::from_secs(300), callback_server.code_rx)
+        .await
+        .map_err(|_| "Charter timed out. The authorization window was open too long.".to_string())?
+        .map_err(|_| "Charter cancelled.".to_string())?;
 
     // Exchange code for tokens
     let provider = oauth::builtin_providers()
@@ -454,8 +448,7 @@ pub async fn oauth_start_charter(
         .find(|p| p.id == provider_id)
         .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
 
-    let custom_client_id =
-        harbor_core::Vault::get(&format!("oauth:{provider_id}:client_id")).ok();
+    let custom_client_id = harbor_core::Vault::get(&format!("oauth:{provider_id}:client_id")).ok();
     let custom_client_secret =
         harbor_core::Vault::get(&format!("oauth:{provider_id}:client_secret")).ok();
 
@@ -489,10 +482,7 @@ pub async fn oauth_start_charter(
         &effective_client_id,
     );
     if let Some(ref secret) = effective_client_secret {
-        let _ = harbor_core::Vault::set(
-            &format!("oauth:{provider_id}:client_secret"),
-            secret,
-        );
+        let _ = harbor_core::Vault::set(&format!("oauth:{provider_id}:client_secret"), secret);
     }
 
     oauth::store_tokens(&provider_id, &tokens).map_err(|e| e.to_string())?;
@@ -542,8 +532,9 @@ pub fn oauth_set_custom_credentials(
 
 #[tauri::command]
 pub fn gdrive_credential_paths() -> Result<(String, String), String> {
-    harbor_core::auth::oauth::gdrive_credential_paths()
-        .ok_or_else(|| "Google Drive credentials not found. Complete the Charter flow first.".into())
+    harbor_core::auth::oauth::gdrive_credential_paths().ok_or_else(|| {
+        "Google Drive credentials not found. Complete the Charter flow first.".into()
+    })
 }
 
 fn normalize_host_key(display_name: &str) -> String {

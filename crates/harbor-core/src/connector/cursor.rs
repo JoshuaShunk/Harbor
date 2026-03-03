@@ -41,6 +41,12 @@ struct CursorServerEntry {
     env: BTreeMap<String, String>,
 }
 
+impl Default for CursorConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CursorConnector {
     pub fn new() -> Self {
         Self
@@ -67,12 +73,11 @@ impl Connector for CursorConnector {
         }
 
         let content = std::fs::read_to_string(&path).map_err(HarborError::Io)?;
-        let config: CursorConfig = serde_json::from_str(&content).map_err(|e| {
-            HarborError::ConnectorError {
+        let config: CursorConfig =
+            serde_json::from_str(&content).map_err(|e| HarborError::ConnectorError {
                 host: "cursor".to_string(),
                 reason: format!("Failed to parse {}: {}", path.display(), e),
-            }
-        })?;
+            })?;
 
         let servers = config
             .mcp_servers

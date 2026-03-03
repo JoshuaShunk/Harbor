@@ -45,6 +45,12 @@ fn default_true() -> bool {
     true
 }
 
+impl Default for CodexConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CodexConnector {
     pub fn new() -> Self {
         Self
@@ -71,12 +77,11 @@ impl Connector for CodexConnector {
         }
 
         let content = std::fs::read_to_string(&path).map_err(HarborError::Io)?;
-        let config: CodexConfig = toml::from_str(&content).map_err(|e| {
-            HarborError::ConnectorError {
+        let config: CodexConfig =
+            toml::from_str(&content).map_err(|e| HarborError::ConnectorError {
                 host: "codex".to_string(),
                 reason: format!("Failed to parse {}: {}", path.display(), e),
-            }
-        })?;
+            })?;
 
         let servers = config
             .mcp_servers

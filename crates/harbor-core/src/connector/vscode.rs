@@ -54,6 +54,12 @@ struct VsCodeServerEntry {
     other: BTreeMap<String, serde_json::Value>,
 }
 
+impl Default for VsCodeConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VsCodeConnector {
     pub fn new() -> Self {
         Self {
@@ -83,12 +89,11 @@ impl Connector for VsCodeConnector {
         }
 
         let content = std::fs::read_to_string(&path).map_err(HarborError::Io)?;
-        let config: VsCodeMcpConfig = serde_json::from_str(&content).map_err(|e| {
-            HarborError::ConnectorError {
+        let config: VsCodeMcpConfig =
+            serde_json::from_str(&content).map_err(|e| HarborError::ConnectorError {
                 host: "vscode".to_string(),
                 reason: format!("Failed to parse {}: {}", path.display(), e),
-            }
-        })?;
+            })?;
 
         let servers = config
             .servers

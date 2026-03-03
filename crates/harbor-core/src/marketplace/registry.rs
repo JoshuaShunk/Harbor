@@ -142,6 +142,12 @@ pub struct RegistryClient {
     http: reqwest::Client,
 }
 
+impl Default for RegistryClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RegistryClient {
     pub fn new() -> Self {
         Self {
@@ -240,11 +246,7 @@ fn relevance_score(server: &RegistryServer, query: &str) -> f64 {
         .next()
         .unwrap_or(&server.name)
         .to_lowercase();
-    let title_lower = server
-        .title
-        .as_deref()
-        .unwrap_or("")
-        .to_lowercase();
+    let title_lower = server.title.as_deref().unwrap_or("").to_lowercase();
     let desc_lower = server.description.to_lowercase();
 
     // --- Content matching (slug, title, description) ---
@@ -256,7 +258,7 @@ fn relevance_score(server: &RegistryServer, query: &str) -> f64 {
     } else if slug.starts_with(query) || slug.ends_with(query) {
         content += 60.0;
     } else if slug
-        .split(|c: char| c == '-' || c == '_')
+        .split(['-', '_'])
         .any(|w| w == query)
     {
         content += 50.0;

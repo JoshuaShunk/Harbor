@@ -39,15 +39,16 @@ impl Vault {
             store.insert(key.to_string(), value.clone());
             let _ = Self::write_store(&store); // best-effort migrate
             let _ = Self::try_legacy_delete(key); // clean up old entry
-            info!(key = key, "Migrated legacy vault entry to consolidated store");
+            info!(
+                key = key,
+                "Migrated legacy vault entry to consolidated store"
+            );
             return Ok(value);
         }
 
         // Fallback to OS environment variable
         std::env::var(key).map_err(|_| {
-            HarborError::VaultError(format!(
-                "Secret '{key}' not found in vault or environment"
-            ))
+            HarborError::VaultError(format!("Secret '{key}' not found in vault or environment"))
         })
     }
 

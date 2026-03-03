@@ -54,12 +54,7 @@ pub async fn run(args: SearchArgs) -> Result<(), HarborError> {
                     "pypi" => "uvx",
                     _ => "npx",
                 });
-            println!(
-                "    {} {} {}",
-                "pkg:".cyan(),
-                runtime,
-                pkg.identifier
-            );
+            println!("    {} {} {}", "pkg:".cyan(), runtime, pkg.identifier);
 
             let env_vars: Vec<_> = pkg.environment_variables.iter().collect();
             if !env_vars.is_empty() {

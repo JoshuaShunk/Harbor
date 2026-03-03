@@ -1,8 +1,8 @@
-use crate::error::{HarborError, Result};
 use crate::config::ServerConfig;
+use crate::error::{HarborError, Result};
 use std::collections::BTreeMap;
 use tokio::process::{Child, Command};
-use tracing::{info, error};
+use tracing::{error, info};
 
 /// Represents a running MCP server process
 pub struct ManagedProcess {
@@ -13,7 +13,11 @@ pub struct ManagedProcess {
 
 impl ManagedProcess {
     /// Spawn a new MCP server process from a ServerConfig
-    pub async fn spawn(name: &str, config: &ServerConfig, resolved_env: &BTreeMap<String, String>) -> Result<Self> {
+    pub async fn spawn(
+        name: &str,
+        config: &ServerConfig,
+        resolved_env: &BTreeMap<String, String>,
+    ) -> Result<Self> {
         info!(server = name, command = %config.command, "Starting MCP server");
 
         let mut cmd = Command::new(&config.command);
@@ -58,9 +62,9 @@ impl ManagedProcess {
     /// Check if the process is still running
     pub fn is_running(&mut self) -> bool {
         match self.child.try_wait() {
-            Ok(None) => true,      // Still running
-            Ok(Some(_)) => false,  // Exited
-            Err(_) => false,       // Error checking = assume dead
+            Ok(None) => true,     // Still running
+            Ok(Some(_)) => false, // Exited
+            Err(_) => false,      // Error checking = assume dead
         }
     }
 }

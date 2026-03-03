@@ -1,7 +1,7 @@
 mod commands;
 
-use tauri::{Emitter, Manager};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -22,8 +22,7 @@ pub fn run() {
                 .accelerator("CmdOrCtrl+,")
                 .build(app)?;
             let check_updates_item =
-                MenuItemBuilder::with_id("check-updates", "Check for Updates...")
-                    .build(app)?;
+                MenuItemBuilder::with_id("check-updates", "Check for Updates...").build(app)?;
 
             let app_menu = SubmenuBuilder::new(app, "Harbor")
                 .about(None)

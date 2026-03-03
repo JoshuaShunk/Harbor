@@ -50,11 +50,12 @@ impl ServerManager {
 
     /// Stop a server by name
     pub async fn stop(&mut self, name: &str) -> Result<()> {
-        let mut process = self.processes.remove(name).ok_or_else(|| {
-            HarborError::ServerNotRunning {
-                name: name.to_string(),
-            }
-        })?;
+        let mut process =
+            self.processes
+                .remove(name)
+                .ok_or_else(|| HarborError::ServerNotRunning {
+                    name: name.to_string(),
+                })?;
 
         process.stop().await?;
         Ok(())
@@ -75,7 +76,11 @@ impl ServerManager {
             if !running {
                 // Process exited, clean up
                 let pid = process.pid;
-                info!(server = name, pid = pid, "Server process exited, cleaning up");
+                info!(
+                    server = name,
+                    pid = pid,
+                    "Server process exited, cleaning up"
+                );
                 (false, Some(pid))
             } else {
                 (true, Some(process.pid))

@@ -31,9 +31,9 @@ pub struct AddArgs {
 }
 
 fn parse_env_var(s: &str) -> Result<(String, String), String> {
-    let pos = s.find('=').ok_or_else(|| {
-        format!("Invalid KEY=VALUE pair: no '=' found in '{s}'")
-    })?;
+    let pos = s
+        .find('=')
+        .ok_or_else(|| format!("Invalid KEY=VALUE pair: no '=' found in '{s}'"))?;
     Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
 }
 
@@ -56,11 +56,7 @@ pub async fn run(args: AddArgs) -> Result<(), HarborError> {
     config.add_server(args.name, server)?;
     config.save()?;
 
-    println!(
-        "{} Server '{}' docked",
-        "ok:".green().bold(),
-        name.cyan()
-    );
+    println!("{} Server '{}' docked", "ok:".green().bold(), name.cyan());
     println!(
         "  Run {} to launch it, or {} to signal your hosts",
         format!("harbor launch {name}").yellow(),

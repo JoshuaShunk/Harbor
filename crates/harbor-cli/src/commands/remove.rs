@@ -18,10 +18,7 @@ pub async fn run(args: RemoveArgs) -> Result<(), HarborError> {
         "ok:".green().bold(),
         args.name.cyan()
     );
-    println!(
-        "  Run {} to signal your hosts",
-        "harbor signal".yellow()
-    );
+    println!("  Run {} to signal your hosts", "harbor signal".yellow());
 
     Ok(())
 }
