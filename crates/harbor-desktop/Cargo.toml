@@ -1,0 +1,25 @@
+[package]
+name = "harbor-desktop"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Desktop app for Harbor — Tauri v2 frontend for MCP server management"
+
+[lib]
+name = "harbor_desktop_lib"
+crate-type = ["staticlib", "cdylib", "lib"]
+
+[dependencies]
+harbor-core = { path = "../harbor-core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

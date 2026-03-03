@@ -1,0 +1,41 @@
+use clap::Args;
+use colored::Colorize;
+use harbor_core::gateway::Gateway;
+use harbor_core::{HarborConfig, HarborError};
+
+#[derive(Args)]
+pub struct GatewayArgs {
+    /// Port to shine the light from (overrides config)
+    #[arg(short, long)]
+    pub port: Option<u16>,
+}
+
+pub async fn run(args: GatewayArgs) -> Result<(), HarborError> {
+    let mut config = HarborConfig::load()?;
+
+    if config.servers.is_empty() {
+        println!(
+            "{} No ships in the fleet. Dock some first with {}",
+            "warn:".yellow().bold(),
+            "harbor dock".yellow()
+        );
+        return Ok(());
+    }
+
+    if let Some(port) = args.port {
+        config.harbor.gateway_port = port;
+    }
+
+    let enabled_count = config.servers.values().filter(|s| s.enabled).count();
+    println!(
+        "{} Lighting the lighthouse with {} ship(s) in the fleet...",
+        "info:".blue().bold(),
+        enabled_count.to_string().cyan()
+    );
+    println!();
+
+    let gateway = Gateway::new(config);
+    gateway.run().await?;
+
+    Ok(())
+}
