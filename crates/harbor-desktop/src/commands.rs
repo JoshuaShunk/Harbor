@@ -112,26 +112,24 @@ pub fn add_server(
     args: Vec<String>,
     env: BTreeMap<String, String>,
 ) -> Result<(), String> {
-    state
-        .with_config_mut(|config| {
-            let server = ServerConfig {
-                source: None,
-                command,
-                args,
-                env,
-                enabled: true,
-                auto_start: false,
-                hosts: BTreeMap::new(),
-            };
-            config.add_server(name, server).map_err(|e| e.to_string())
-        })??;
+    state.with_config_mut(|config| {
+        let server = ServerConfig {
+            source: None,
+            command,
+            args,
+            env,
+            enabled: true,
+            auto_start: false,
+            hosts: BTreeMap::new(),
+        };
+        config.add_server(name, server).map_err(|e| e.to_string())
+    })??;
     Ok(())
 }
 
 #[tauri::command]
 pub fn remove_server(state: tauri::State<AppState>, name: String) -> Result<(), String> {
-    state
-        .with_config_mut(|config| config.remove_server(&name).map_err(|e| e.to_string()))??;
+    state.with_config_mut(|config| config.remove_server(&name).map_err(|e| e.to_string()))??;
     Ok(())
 }
 
@@ -141,15 +139,14 @@ pub fn toggle_server(
     name: String,
     enabled: bool,
 ) -> Result<(), String> {
-    state
-        .with_config_mut(|config| {
-            if let Some(server) = config.servers.get_mut(&name) {
-                server.enabled = enabled;
-                Ok(())
-            } else {
-                Err(format!("Server '{name}' not found"))
-            }
-        })??;
+    state.with_config_mut(|config| {
+        if let Some(server) = config.servers.get_mut(&name) {
+            server.enabled = enabled;
+            Ok(())
+        } else {
+            Err(format!("Server '{name}' not found"))
+        }
+    })??;
     Ok(())
 }
 

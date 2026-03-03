@@ -257,10 +257,7 @@ fn relevance_score(server: &RegistryServer, query: &str) -> f64 {
         content += 100.0;
     } else if slug.starts_with(query) || slug.ends_with(query) {
         content += 60.0;
-    } else if slug
-        .split(['-', '_'])
-        .any(|w| w == query)
-    {
+    } else if slug.split(['-', '_']).any(|w| w == query) {
         content += 50.0;
     } else if slug.contains(query) {
         content += 30.0;
