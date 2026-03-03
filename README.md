@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://github.com/JoshuaShunk/Harbor/releases/latest"><img src="https://img.shields.io/github/v/release/JoshuaShunk/Harbor?style=flat-square&color=blue" alt="Latest Release"></a>
-  <a href="https://github.com/JoshuaShunk/Harbor/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/JoshuaShunk/Harbor/release.yml?style=flat-square&label=build" alt="Build Status"></a>
+  <a href="https://github.com/JoshuaShunk/Harbor/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/JoshuaShunk/Harbor/ci.yml?style=flat-square&label=build" alt="Build Status"></a>
   <a href="https://github.com/JoshuaShunk/Harbor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/JoshuaShunk/Harbor?style=flat-square" alt="License"></a>
   <a href="https://github.com/JoshuaShunk/Harbor/releases"><img src="https://img.shields.io/github/downloads/JoshuaShunk/Harbor/total?style=flat-square&color=green" alt="Downloads"></a>
 </p>
