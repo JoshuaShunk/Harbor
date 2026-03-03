@@ -46,6 +46,9 @@ jobs:
         working-directory: ui
         run: npm run build
 
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli
+
       - name: Build and release Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
