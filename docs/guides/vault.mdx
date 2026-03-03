@@ -1,0 +1,70 @@
+---
+title: "Secret Vault"
+sidebarTitle: "Vault"
+description: "Store API keys securely in your OS keychain and reference them in server configs."
+---
+
+Many MCP servers require API keys or tokens. Instead of storing these as plain text in config files, Harbor lets you store them in your operating system's keychain and reference them with `vault:` prefixes.
+
+## How It Works
+
+1. You store a secret in Harbor's vault (backed by your OS keychain)
+2. You reference it in a server's environment variables as `vault:SECRET_NAME`
+3. When Harbor syncs to a host, it resolves the reference and injects the actual value
+
+<Note>
+Your secrets are stored in the OS keychain (macOS Keychain, Windows Credential Manager, or Linux Secret Service). They never appear in plain-text config files.
+</Note>
+
+## CLI Usage
+
+### Store a secret
+
+```sh
+harbor chest set GITHUB_TOKEN ghp_xxxxxxxxxxxx
+```
+
+### Retrieve a secret
+
+```sh
+harbor chest get GITHUB_TOKEN
+```
+
+### List all secrets
+
+```sh
+harbor chest list
+```
+
+### Delete a secret
+
+```sh
+harbor chest delete GITHUB_TOKEN
+```
+
+## Using Vault References
+
+When adding a server, reference your stored secrets in environment variables:
+
+```sh
+harbor dock --name github --command npx \
+  --args @modelcontextprotocol/server-github \
+  --env GITHUB_TOKEN=vault:GITHUB_TOKEN
+```
+
+In your `~/.harbor/config.toml`, this looks like:
+
+```toml
+[servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+
+[servers.github.env]
+GITHUB_TOKEN = "vault:GITHUB_TOKEN"
+```
+
+When you run `harbor signal`, Harbor resolves `vault:GITHUB_TOKEN` to the actual value from your keychain before writing to host configs.
+
+## Desktop App
+
+In the desktop app, manage secrets from the **Helm** page under the **Treasure Chest** section. You can add, view, and delete secrets through the UI.

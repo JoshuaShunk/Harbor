@@ -1,0 +1,51 @@
+---
+title: "What is Harbor?"
+sidebarTitle: "Introduction"
+description: "Universal MCP Hub — discover, install, run, and sync MCP servers across every host."
+---
+
+Harbor is a desktop app and CLI that manages [MCP (Model Context Protocol)](https://modelcontextprotocol.io) servers from a single place. Instead of editing JSON and TOML configs by hand across every host, you dock servers once and Harbor syncs them everywhere.
+
+<Frame>
+  <img src="/images/screenshot-light.png" alt="Harbor Desktop App" />
+</Frame>
+
+## Why Harbor?
+
+Every AI-powered development tool — Claude Code, Codex, VS Code, Cursor — has its own config file format for MCP servers. Adding a new server means editing multiple files, copying API keys around, and hoping nothing breaks.
+
+Harbor fixes this. You configure your servers once, and Harbor handles the rest.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="One Config, Every Host" icon="arrows-rotate">
+    Sync to Claude Code, Codex, VS Code, and Cursor simultaneously from a single source of truth.
+  </Card>
+  <Card title="Marketplace" icon="store">
+    Search and install MCP servers from [Smithery](https://smithery.ai) without leaving the app.
+  </Card>
+  <Card title="Secret Vault" icon="lock">
+    Store API keys in your OS keychain and reference them as `vault:SECRET_NAME`. Your secrets never end up in plain-text config files.
+  </Card>
+  <Card title="HTTP/SSE Gateway" icon="tower-broadcast">
+    Expose your MCP servers over HTTP for remote access and tool discovery.
+  </Card>
+  <Card title="Desktop + CLI" icon="display">
+    Full GUI built with Tauri, or use the CLI for automation and scripting.
+  </Card>
+  <Card title="Safe Merges" icon="shield-check">
+    Harbor never overwrites your host configs — it merges its servers in alongside yours.
+  </Card>
+</CardGroup>
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card title="Install Harbor" icon="download" href="/quickstart/installation">
+    Download the desktop app or install the CLI.
+  </Card>
+  <Card title="Dock Your First Server" icon="anchor" href="/quickstart/first-server">
+    Add an MCP server and sync it to your hosts in under a minute.
+  </Card>
+</CardGroup>

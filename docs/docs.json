@@ -1,0 +1,87 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Harbor",
+  "colors": {
+    "primary": "#4C8EF7",
+    "light": "#4C8EF7",
+    "dark": "#4C8EF7"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.png",
+    "dark": "/logo/dark.png"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Website",
+        "href": "https://harbormcp.ai"
+      },
+      {
+        "label": "GitHub",
+        "href": "https://github.com/JoshuaShunk/Harbor"
+      }
+    ]
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart/installation",
+              "quickstart/first-server"
+            ]
+          },
+          {
+            "group": "Desktop App",
+            "pages": [
+              "desktop/overview",
+              "desktop/servers",
+              "desktop/hosts",
+              "desktop/marketplace",
+              "desktop/settings"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "cli/overview",
+              "cli/commands"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/vault",
+              "guides/gateway",
+              "guides/hosts"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/config-file"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/building",
+              "development/contributing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/JoshuaShunk/Harbor"
+    }
+  }
+}

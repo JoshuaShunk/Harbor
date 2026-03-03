@@ -1,0 +1,54 @@
+---
+title: "CLI Overview"
+sidebarTitle: "Overview"
+description: "Manage MCP servers from the terminal with Harbor's command-line interface."
+---
+
+The Harbor CLI gives you full control over your MCP server fleet from the terminal. Every command uses a nautical theme, with standard aliases available if you prefer.
+
+## Installation
+
+```sh
+git clone https://github.com/JoshuaShunk/Harbor.git
+cd Harbor
+cargo install --path crates/harbor-cli
+```
+
+## Usage
+
+```sh
+harbor <command> [options]
+```
+
+Run `harbor --help` to see all available commands, or `harbor <command> --help` for details on a specific command.
+
+## Quick Example
+
+```sh
+# Dock a server
+harbor dock --name github --command npx \
+  --args @modelcontextprotocol/server-github \
+  --env GITHUB_TOKEN=vault:GITHUB_TOKEN
+
+# Sync to all hosts
+harbor signal
+
+# Check your fleet
+harbor fleet
+
+# Start the gateway
+harbor lighthouse
+```
+
+## Nautical Naming
+
+Harbor uses a nautical theme for its commands. Every command has a standard alias if you prefer conventional names:
+
+| Nautical | Standard | What it does |
+|----------|----------|-------------|
+| `dock` | `add` | Add a server |
+| `undock` | `remove` | Remove a server |
+| `fleet` | `list` | List servers |
+| `signal` | `sync` | Sync to hosts |
+
+See the [full command reference](/cli/commands) for all commands.

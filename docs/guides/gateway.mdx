@@ -1,0 +1,57 @@
+---
+title: "HTTP/SSE Gateway"
+sidebarTitle: "Gateway"
+description: "Expose your MCP servers over HTTP for remote access and tool discovery."
+---
+
+Harbor's gateway (called the **Lighthouse**) exposes your MCP servers over HTTP, enabling remote access and tool discovery.
+
+## Starting the Gateway
+
+### CLI
+
+```sh
+harbor lighthouse --port 3100
+```
+
+### Desktop App
+
+Configure the gateway port in the **Helm** page under the **Lighthouse** section.
+
+## Endpoints
+
+Once running, the gateway provides these endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | `GET` | Health check — returns `200` if the gateway is running |
+| `/tools` | `GET` | List all available tools across your docked servers |
+| `/servers` | `GET` | List all running MCP servers |
+| `/mcp` | `POST` | JSON-RPC endpoint for MCP protocol messages |
+| `/sse` | `GET` | Server-sent events stream for real-time updates |
+
+## Example
+
+```sh
+# Check health
+curl http://localhost:3100/health
+
+# List available tools
+curl http://localhost:3100/tools
+
+# List running servers
+curl http://localhost:3100/servers
+```
+
+## Configuration
+
+The default port is `3100`. Change it in the CLI with `--port` or in the config file:
+
+```toml
+[harbor]
+gateway_port = 3100
+```
+
+<Note>
+The gateway enables CORS by default, allowing cross-origin requests from web applications.
+</Note>

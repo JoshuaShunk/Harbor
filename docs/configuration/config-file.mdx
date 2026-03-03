@@ -1,0 +1,116 @@
+---
+title: "Configuration File"
+sidebarTitle: "Config File"
+description: "Reference for Harbor's ~/.harbor/config.toml configuration file."
+---
+
+Harbor stores its configuration at `~/.harbor/config.toml`. You can edit this file directly or manage everything through the desktop app and CLI.
+
+## File Location
+
+```
+~/.harbor/config.toml
+```
+
+## Structure
+
+### Harbor Settings
+
+```toml
+[harbor]
+gateway_port = 3100  # HTTP/SSE gateway port
+```
+
+### Servers
+
+Each server is defined under `[servers.<name>]`:
+
+```toml
+[servers.github]
+source = "npm:@mcp/server-github"  # Where the server came from (optional)
+command = "npx"                      # Executable to run
+args = ["-y", "@modelcontextprotocol/server-github"]  # Command arguments
+enabled = true                       # Whether the server is active
+auto_start = false                   # Start automatically with Harbor
+
+[servers.github.env]
+GITHUB_TOKEN = "vault:GITHUB_TOKEN"  # Environment variables
+
+[servers.github.hosts]
+claude = true    # Per-host enable/disable overrides
+codex = true
+vscode = false
+```
+
+### Server Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `source` | string | — | How the server was sourced (e.g., `npm:@mcp/server-github`) |
+| `command` | string | **required** | Executable to run |
+| `args` | string[] | `[]` | Arguments passed to the command |
+| `env` | map | `{}` | Environment variables (supports `vault:KEY` references) |
+| `enabled` | bool | `true` | Whether the server is globally enabled |
+| `auto_start` | bool | `false` | Start this server automatically when Harbor launches |
+| `hosts` | map | `{}` | Per-host enable/disable overrides |
+
+### Hosts
+
+Each host is defined under `[hosts.<name>]`:
+
+```toml
+[hosts.claude]
+connected = true    # Whether this host is active
+
+[hosts.vscode]
+connected = true
+scope = "user"      # Scope for hosts that support it
+```
+
+### Host Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `connected` | bool | `false` | Whether Harbor syncs to this host |
+| `scope` | string | — | Scope level (e.g., `user` or `project`) |
+
+## Full Example
+
+```toml
+[harbor]
+gateway_port = 3100
+
+[servers.memory]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-memory"]
+enabled = true
+auto_start = false
+
+[servers.github]
+source = "npm:@mcp/server-github"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+enabled = true
+auto_start = false
+
+[servers.github.env]
+GITHUB_TOKEN = "vault:GITHUB_TOKEN"
+
+[servers.github.hosts]
+claude = true
+codex = true
+vscode = true
+cursor = false
+
+[hosts.claude]
+connected = true
+
+[hosts.codex]
+connected = true
+
+[hosts.vscode]
+connected = true
+
+[hosts.cursor]
+connected = false
+```

@@ -1,0 +1,30 @@
+---
+title: "Scout (Marketplace)"
+sidebarTitle: "Marketplace"
+description: "Discover and install MCP servers from the Smithery marketplace."
+---
+
+The **Scout** page connects you to the [Smithery](https://smithery.ai) registry, where you can discover and install MCP servers without leaving Harbor.
+
+## Searching for Servers
+
+Use the search bar to find servers by name, description, or category. Results show:
+
+- **Server name** and description
+- **Runtime** (npm, pip, etc.)
+- **Badges** for official or certified servers
+
+## Installing a Server
+
+1. Find the server you want
+2. Click **Install**
+3. Configure any required environment variables (e.g., API keys)
+4. The server is automatically docked into your fleet
+
+<Tip>
+For servers that need API keys, you can store them in the [secret vault](/guides/vault) and reference them as `vault:SECRET_NAME` in the environment variables.
+</Tip>
+
+## OAuth Servers
+
+Some servers (like GitHub, Google, Slack) support OAuth authentication. Harbor handles the OAuth flow for you — click the OAuth button to authorize, and Harbor stores the tokens securely.

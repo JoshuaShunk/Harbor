@@ -1,0 +1,153 @@
+---
+title: "Command Reference"
+sidebarTitle: "Commands"
+description: "Complete reference for every Harbor CLI command."
+---
+
+Every command has a nautical name and a standard alias. Use whichever you prefer.
+
+## harbor dock
+
+<Info>Alias: `harbor add`</Info>
+
+Dock a new MCP server into the harbor.
+
+```sh
+harbor dock --name <name> --command <command> [--args <args>...] [--env <KEY=VALUE>...]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--name` | Unique name for the server |
+| `--command` | Executable to run |
+| `--args` | Arguments to pass to the command |
+| `--env` | Environment variables (supports `vault:KEY` references) |
+
+**Example:**
+
+```sh
+harbor dock --name memory --command npx --args @modelcontextprotocol/server-memory
+```
+
+---
+
+## harbor undock
+
+<Info>Alias: `harbor remove`</Info>
+
+Undock a server and cast it off.
+
+```sh
+harbor undock --name <name>
+```
+
+---
+
+## harbor fleet
+
+<Info>Alias: `harbor list`</Info>
+
+Review your fleet of docked servers. Shows each server's name, command, status, and enabled state.
+
+```sh
+harbor fleet
+```
+
+---
+
+## harbor launch
+
+<Info>Alias: `harbor start`</Info>
+
+Launch a server out to sea (start the process).
+
+```sh
+harbor launch --name <name>
+```
+
+---
+
+## harbor anchor
+
+<Info>Alias: `harbor stop`</Info>
+
+Drop anchor on a running server (stop the process).
+
+```sh
+harbor anchor --name <name>
+```
+
+---
+
+## harbor manifest
+
+<Info>Alias: `harbor status`</Info>
+
+Read the harbor manifest — shows the current state of all servers and hosts.
+
+```sh
+harbor manifest
+```
+
+---
+
+## harbor signal
+
+<Info>Alias: `harbor sync`</Info>
+
+Signal connected hosts to update their charts. This merges your docked servers into each host's config file.
+
+```sh
+harbor signal [--host <host>]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--host` | Sync only to a specific host (optional) |
+
+---
+
+## harbor lighthouse
+
+<Info>Alias: `harbor gateway`</Info>
+
+Light the lighthouse — start the HTTP/SSE gateway to expose your MCP servers over the network.
+
+```sh
+harbor lighthouse [--port <port>]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--port` | Port to listen on (default: `3100`) |
+
+See the [gateway guide](/guides/gateway) for endpoint details.
+
+---
+
+## harbor scout
+
+<Info>Alias: `harbor search`</Info>
+
+Scout the seas for new MCP servers on the [Smithery](https://smithery.ai) registry.
+
+```sh
+harbor scout <query>
+```
+
+---
+
+## harbor chest
+
+<Info>Alias: `harbor vault`</Info>
+
+Open the treasure chest — manage secrets stored in your OS keychain.
+
+```sh
+harbor chest set <key> <value>
+harbor chest get <key>
+harbor chest delete <key>
+harbor chest list
+```
+
+See the [vault guide](/guides/vault) for more details.

@@ -1,0 +1,41 @@
+---
+title: "Ports (Hosts)"
+sidebarTitle: "Hosts"
+description: "Connect to AI development tools and sync your server fleet."
+---
+
+The **Ports** page lets you connect Harbor to your AI development tools and sync your MCP server fleet to each one.
+
+## Supported Hosts
+
+| Host | Config File | Status |
+|------|------------|--------|
+| Claude Code | `~/.claude.json` | Supported |
+| Codex | `~/.codex/config.toml` | Supported |
+| VS Code | `.vscode/mcp.json` | Supported |
+| Cursor | `~/.cursor/mcp.json` | Supported |
+
+## Connecting a Host
+
+1. Find the host in the list
+2. Click **Link** to connect it
+3. Harbor will detect the host's config file location automatically
+
+## Syncing
+
+Once connected, you can sync your fleet to hosts:
+
+- **Signal** (per host) — Sync only to that specific host
+- **Signal All** — Sync to every connected host at once
+
+## How Syncing Works
+
+When you signal a host, Harbor:
+
+1. Reads the host's existing config file
+2. Merges your enabled servers into the config
+3. Writes the updated config back
+
+<Note>
+Harbor never overwrites your existing host configuration. It only adds or updates servers that Harbor manages, leaving your manually-configured servers untouched.
+</Note>

@@ -1,0 +1,66 @@
+---
+title: "Contributing"
+description: "How to contribute to Harbor."
+---
+
+Contributions are welcome! Here's how to get started.
+
+## Development Setup
+
+<Steps>
+  <Step title="Fork and clone">
+    Fork the repo on GitHub, then clone your fork:
+
+    ```sh
+    git clone https://github.com/<your-username>/Harbor.git
+    cd Harbor
+    ```
+  </Step>
+  <Step title="Install dependencies">
+    ```sh
+    cd ui && npm ci && cd ..
+    ```
+  </Step>
+  <Step title="Run the app">
+    ```sh
+    cd crates/harbor-desktop && cargo tauri dev
+    ```
+
+    Or build just the CLI:
+
+    ```sh
+    cargo build -p harbor-cli
+    ```
+  </Step>
+</Steps>
+
+## Making Changes
+
+1. Create a branch from `main`
+2. Keep changes focused and minimal
+3. Run `cargo build --workspace` to verify your changes compile
+4. Submit a pull request with a description of what you changed and why
+
+## Guidelines
+
+- Keep PRs focused on a single change
+- Follow existing code style and patterns
+- Write descriptive commit messages
+- If adding a new CLI command, follow the nautical naming theme
+- If modifying connector behavior, test against the affected host config format
+
+## Reporting Bugs
+
+Open an [issue](https://github.com/JoshuaShunk/Harbor/issues/new?template=bug-report.yml) with:
+
+- Steps to reproduce
+- Expected vs actual behavior
+- Your OS and Harbor version
+
+## Suggesting Features
+
+Open a [discussion](https://github.com/JoshuaShunk/Harbor/discussions) or [feature request](https://github.com/JoshuaShunk/Harbor/issues/new?template=feature-request.yml) describing:
+
+- The problem you're trying to solve
+- How you'd like it to work
+- Any alternatives you've considered

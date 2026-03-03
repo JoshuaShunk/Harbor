@@ -1,0 +1,65 @@
+---
+title: "Dock Your First Server"
+sidebarTitle: "First Server"
+description: "Add an MCP server and sync it to your hosts in under a minute."
+---
+
+## Using the CLI
+
+<Steps>
+  <Step title="Dock a server">
+    Add an MCP server to Harbor. This example adds the MCP memory server:
+
+    ```sh
+    harbor dock --name memory --command npx --args @modelcontextprotocol/server-memory
+    ```
+  </Step>
+  <Step title="Sync to your hosts">
+    Push your fleet to all connected hosts:
+
+    ```sh
+    harbor signal
+    ```
+
+    This merges the server config into Claude Code, Codex, VS Code, and Cursor — wherever you've connected.
+  </Step>
+  <Step title="Check your fleet">
+    Verify everything is docked:
+
+    ```sh
+    harbor fleet
+    ```
+  </Step>
+</Steps>
+
+## Using the Desktop App
+
+<Steps>
+  <Step title="Open the Fleet page">
+    Launch Harbor and navigate to the **Fleet** tab in the sidebar.
+  </Step>
+  <Step title="Add a server">
+    Click the **Add Server** button. Enter the server name, command, and any arguments or environment variables.
+  </Step>
+  <Step title="Connect your hosts">
+    Go to the **Ports** tab and connect the hosts you want to sync to (Claude Code, VS Code, etc.).
+  </Step>
+  <Step title="Signal your hosts">
+    Click **Signal All** to push your fleet to every connected host.
+  </Step>
+</Steps>
+
+## What Just Happened?
+
+When you dock a server, Harbor stores it in `~/.harbor/config.toml`. When you signal, Harbor reads each host's config file, merges your servers in alongside any existing ones, and writes it back. Your original config is never overwritten — Harbor only adds or updates its own servers.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Secret Vault" icon="lock" href="/guides/vault">
+    Store API keys securely and reference them in your servers.
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/cli/commands">
+    See every command Harbor offers.
+  </Card>
+</CardGroup>

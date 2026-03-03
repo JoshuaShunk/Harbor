@@ -1,0 +1,58 @@
+---
+title: "Host Sync"
+sidebarTitle: "Host Sync"
+description: "How Harbor syncs MCP servers to Claude Code, Codex, VS Code, and Cursor."
+---
+
+Harbor supports syncing your MCP server fleet to multiple AI development tools simultaneously.
+
+## Supported Hosts
+
+| Host | Config File | Config Key |
+|------|------------|------------|
+| **Claude Code** | `~/.claude.json` | `mcpServers` |
+| **Codex** | `~/.codex/config.toml` | `mcp_servers` |
+| **VS Code** | `.vscode/mcp.json` | `servers` |
+| **Cursor** | `~/.cursor/mcp.json` | `mcpServers` |
+
+## How Syncing Works
+
+Each host stores MCP server configuration in its own format. Harbor handles the translation:
+
+<Steps>
+  <Step title="Read">
+    Harbor reads the host's existing config file.
+  </Step>
+  <Step title="Merge">
+    Your enabled servers are merged into the config. Servers you've configured directly in the host are left untouched.
+  </Step>
+  <Step title="Resolve">
+    Any `vault:` references in environment variables are resolved to actual values from your OS keychain.
+  </Step>
+  <Step title="Write">
+    The updated config is written back to the host's config file.
+  </Step>
+</Steps>
+
+## Per-Host Control
+
+You can enable or disable individual servers for specific hosts. A server might be enabled for Claude Code but disabled for Cursor:
+
+```toml
+[servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+enabled = true
+
+[servers.github.hosts]
+claude = true
+codex = true
+vscode = false
+cursor = false
+```
+
+## Safe Merges
+
+<Note>
+Harbor never overwrites your host configs. It identifies which servers it manages and only modifies those entries, leaving your manually-configured servers intact.
+</Note>

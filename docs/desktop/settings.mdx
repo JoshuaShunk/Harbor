@@ -1,0 +1,39 @@
+---
+title: "Helm (Settings)"
+sidebarTitle: "Settings"
+description: "Configure Harbor's gateway, vault, theme, and updates."
+---
+
+The **Helm** page is your control center for Harbor's settings.
+
+## Sections
+
+### Appearance
+
+Switch between **Light**, **Dark**, and **System** themes.
+
+### Lighthouse (Gateway)
+
+Configure the HTTP/SSE gateway port (default: `3100`). When running, the gateway exposes your MCP servers over HTTP. See the [gateway guide](/guides/gateway) for details.
+
+### Charts (Config)
+
+View the location of your Harbor manifest file (`~/.harbor/config.toml`).
+
+### Dry Dock (Updates)
+
+Check for new versions of Harbor and install updates when available.
+
+### Treasure Chest (Vault)
+
+Manage secrets stored in your OS keychain:
+
+- **Add** a new secret
+- **View** existing secret names
+- **Delete** secrets you no longer need
+
+See the [vault guide](/guides/vault) for more on how secrets work.
+
+### Papers (OAuth)
+
+Manage OAuth provider configurations for servers that use OAuth authentication (GitHub, Google, Slack). You can set custom OAuth credentials here if needed.

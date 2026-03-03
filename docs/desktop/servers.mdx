@@ -1,0 +1,31 @@
+---
+title: "Fleet (Servers)"
+sidebarTitle: "Servers"
+description: "Manage your docked MCP servers from the Fleet page."
+---
+
+The **Fleet** page is where you manage all your docked MCP servers.
+
+## Adding a Server
+
+1. Click **Add Server** at the top of the page
+2. Fill in the server details:
+   - **Name** — A unique identifier for the server (e.g., `github`, `memory`)
+   - **Command** — The executable to run (e.g., `npx`, `node`, `python`)
+   - **Arguments** — Command-line arguments (e.g., `@modelcontextprotocol/server-github`)
+   - **Environment Variables** — Key-value pairs passed to the server process. Use `vault:SECRET_NAME` to reference secrets stored in the [vault](/guides/vault)
+3. Click **Save** to dock the server
+
+## Managing Servers
+
+Each server card shows its name, command, status, and enabled state.
+
+| Action | Description |
+|--------|-------------|
+| **Rig** | Enable the server so it's included when syncing to hosts |
+| **Moor** | Disable the server without removing it |
+| **Remove** | Permanently undock the server from Harbor |
+
+## Syncing to Hosts
+
+After making changes to your fleet, go to the [Ports](/desktop/hosts) page and click **Signal All** to push your changes to all connected hosts. Servers that are disabled (moored) will not be synced.

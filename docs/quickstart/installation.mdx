@@ -1,0 +1,42 @@
+---
+title: "Installation"
+description: "Download the Harbor desktop app or install the CLI."
+---
+
+## Desktop App
+
+Download the latest release for your platform:
+
+<Card title="Download Harbor" icon="download" href="https://github.com/JoshuaShunk/Harbor/releases/latest">
+  macOS (Apple Silicon & Intel) available now. Windows and Linux coming soon.
+</Card>
+
+1. Download the `.dmg` file from the [latest release](https://github.com/JoshuaShunk/Harbor/releases/latest)
+2. Open the `.dmg` and drag Harbor to your Applications folder
+3. Launch Harbor from your Applications
+
+## CLI
+
+Install the CLI by building from source:
+
+```sh
+git clone https://github.com/JoshuaShunk/Harbor.git
+cd Harbor
+cargo install --path crates/harbor-cli
+```
+
+### Prerequisites
+
+- [Rust](https://rustup.rs/) 1.75 or later
+
+Once installed, verify it's working:
+
+```sh
+harbor --version
+```
+
+## Next Steps
+
+<Card title="Dock Your First Server" icon="anchor" href="/quickstart/first-server">
+  Add an MCP server and sync it to all your hosts.
+</Card>
