@@ -10,11 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    outputs:
-      release_id: ${{ steps.create.outputs.id }}
     steps:
       - name: Create GitHub Release
-        id: create
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
@@ -82,6 +79,21 @@ jobs:
         working-directory: crates/harbor-desktop
         run: npx tauri build --target ${{ matrix.target }}
 
+      - name: Package and sign updater artifact
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          BUNDLE_DIR="target/${{ matrix.target }}/release/bundle"
+          APP_DIR="${BUNDLE_DIR}/macos/Harbor.app"
+          TARGZ="${BUNDLE_DIR}/macos/Harbor_${{ matrix.arch }}.app.tar.gz"
+
+          # Create tar.gz from .app bundle
+          tar -czf "${TARGZ}" -C "${BUNDLE_DIR}/macos" Harbor.app
+
+          # Sign the tar.gz with Tauri signer
+          npx tauri signer sign "${TARGZ}" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+
       - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -92,13 +104,13 @@ jobs:
           DMG=$(ls ${BUNDLE_DIR}/dmg/*.dmg)
           gh release upload ${{ github.ref_name }} "${DMG}" --repo ${{ github.repository }} --clobber
 
-          # Upload signed .app.tar.gz (from tauri build, NOT re-packaged)
-          TARGZ="${BUNDLE_DIR}/macos/Harbor.app.tar.gz"
-          gh release upload ${{ github.ref_name }} "${TARGZ}#Harbor_${{ matrix.arch }}.app.tar.gz" --repo ${{ github.repository }} --clobber
+          # Upload signed .app.tar.gz
+          TARGZ="${BUNDLE_DIR}/macos/Harbor_${{ matrix.arch }}.app.tar.gz"
+          gh release upload ${{ github.ref_name }} "${TARGZ}" --repo ${{ github.repository }} --clobber
 
           # Upload signature
-          SIG="${BUNDLE_DIR}/macos/Harbor.app.tar.gz.sig"
-          gh release upload ${{ github.ref_name }} "${SIG}#Harbor_${{ matrix.arch }}.app.tar.gz.sig" --repo ${{ github.repository }} --clobber
+          SIG="${TARGZ}.sig"
+          gh release upload ${{ github.ref_name }} "${SIG}" --repo ${{ github.repository }} --clobber
 
   publish-updater:
     needs: [create-release, build]
@@ -106,11 +118,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download release assets info
+      - name: Build and upload latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get signatures from uploaded .sig files
+          # Download signature files
           gh release download ${{ github.ref_name }} --pattern "*.sig" --repo ${{ github.repository }} --dir sigs
 
           AARCH64_SIG=$(cat sigs/Harbor_aarch64.app.tar.gz.sig)
@@ -119,11 +131,10 @@ jobs:
           AARCH64_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Harbor_aarch64.app.tar.gz"
           X64_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Harbor_x64.app.tar.gz"
 
-          # Read version from tag (strip leading 'v')
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
 
-          cat > latest.json << ENDJSON
+          cat > latest.json << EOF
           {
             "version": "${VERSION}",
             "notes": "Harbor ${VERSION}",
@@ -139,7 +150,7 @@ jobs:
               }
             }
           }
-          ENDJSON
+          EOF
 
           cat latest.json
           gh release upload ${{ github.ref_name }} latest.json --repo ${{ github.repository }} --clobber
