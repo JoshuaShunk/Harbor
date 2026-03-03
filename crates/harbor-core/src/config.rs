@@ -273,4 +273,146 @@ mod tests {
             "vault:my_key"
         );
     }
+
+    #[test]
+    fn test_save_and_load_from_file() {
+        let dir = std::env::temp_dir().join("harbor_test_config");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.toml");
+
+        let mut config = HarborConfig::default();
+        config
+            .add_server(
+                "test-server".to_string(),
+                ServerConfig {
+                    source: None,
+                    command: "echo".to_string(),
+                    args: vec!["hello".to_string()],
+                    env: BTreeMap::new(),
+                    enabled: true,
+                    auto_start: true,
+                    hosts: BTreeMap::new(),
+                },
+            )
+            .unwrap();
+
+        config.save_to(&path).unwrap();
+        assert!(path.exists());
+
+        let loaded = HarborConfig::load_from(&path).unwrap();
+        assert!(loaded.servers.contains_key("test-server"));
+        assert_eq!(loaded.servers["test-server"].command, "echo");
+        assert!(loaded.servers["test-server"].auto_start);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_from_nonexistent_returns_default() {
+        let path = std::env::temp_dir().join("harbor_nonexistent_config.toml");
+        let _ = std::fs::remove_file(&path); // ensure it doesn't exist
+        let config = HarborConfig::load_from(&path).unwrap();
+        assert!(config.servers.is_empty());
+        assert_eq!(config.harbor.gateway_port, 3100);
+    }
+
+    #[test]
+    fn test_get_server() {
+        let mut config = HarborConfig::default();
+        config
+            .add_server(
+                "my-server".to_string(),
+                ServerConfig {
+                    source: None,
+                    command: "node".to_string(),
+                    args: vec!["server.js".to_string()],
+                    env: BTreeMap::new(),
+                    enabled: true,
+                    auto_start: false,
+                    hosts: BTreeMap::new(),
+                },
+            )
+            .unwrap();
+
+        let server = config.get_server("my-server").unwrap();
+        assert_eq!(server.command, "node");
+
+        assert!(config.get_server("nonexistent").is_err());
+    }
+
+    #[test]
+    fn test_remove_nonexistent_server_errors() {
+        let mut config = HarborConfig::default();
+        let result = config.remove_server("does-not-exist");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_servers_for_host() {
+        let mut config = HarborConfig::default();
+
+        // Server enabled for claude, disabled for codex
+        let mut hosts1 = BTreeMap::new();
+        hosts1.insert("claude".to_string(), true);
+        hosts1.insert("codex".to_string(), false);
+        config
+            .add_server(
+                "server-a".to_string(),
+                ServerConfig {
+                    source: None,
+                    command: "cmd-a".to_string(),
+                    args: vec![],
+                    env: BTreeMap::new(),
+                    enabled: true,
+                    auto_start: false,
+                    hosts: hosts1,
+                },
+            )
+            .unwrap();
+
+        // Server with no host overrides (enabled for all)
+        config
+            .add_server(
+                "server-b".to_string(),
+                ServerConfig {
+                    source: None,
+                    command: "cmd-b".to_string(),
+                    args: vec![],
+                    env: BTreeMap::new(),
+                    enabled: true,
+                    auto_start: false,
+                    hosts: BTreeMap::new(),
+                },
+            )
+            .unwrap();
+
+        // Globally disabled server
+        config
+            .add_server(
+                "server-c".to_string(),
+                ServerConfig {
+                    source: None,
+                    command: "cmd-c".to_string(),
+                    args: vec![],
+                    env: BTreeMap::new(),
+                    enabled: false,
+                    auto_start: false,
+                    hosts: BTreeMap::new(),
+                },
+            )
+            .unwrap();
+
+        let claude_servers = config.servers_for_host("claude");
+        let names: Vec<&str> = claude_servers.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"server-a"));
+        assert!(names.contains(&"server-b"));
+        assert!(!names.contains(&"server-c"));
+
+        let codex_servers = config.servers_for_host("codex");
+        let names: Vec<&str> = codex_servers.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(!names.contains(&"server-a")); // disabled for codex
+        assert!(names.contains(&"server-b"));
+        assert!(!names.contains(&"server-c")); // globally disabled
+    }
 }
