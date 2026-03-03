@@ -92,7 +92,11 @@ jobs:
           tar -czf "${TARGZ}" -C "${BUNDLE_DIR}/macos" Harbor.app
 
           # Sign the tar.gz with Tauri signer
-          npx tauri signer sign "${TARGZ}" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
+            npx tauri signer sign "${TARGZ}" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+          else
+            npx tauri signer sign "${TARGZ}" --private-key "$TAURI_SIGNING_PRIVATE_KEY"
+          fi
 
       - name: Upload release assets
         env:
