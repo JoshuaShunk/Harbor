@@ -6,15 +6,35 @@ on:
       - "v*"
 
 jobs:
-  release:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.id }}
+    steps:
+      - name: Create GitHub Release
+        id: create
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Harbor ${{ github.ref_name }}"
+          body: "See the assets below to download Harbor for your platform."
+          draft: false
+          prerelease: false
+
+  build:
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-latest
             target: aarch64-apple-darwin
+            arch: aarch64
           - platform: macos-latest
             target: x86_64-apple-darwin
+            arch: x64
 
     runs-on: ${{ matrix.platform }}
 
@@ -49,10 +69,8 @@ jobs:
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli
 
-      - name: Build and release Tauri app
-        uses: tauri-apps/tauri-action@v0
+      - name: Build Tauri app
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           HARBOR_GITHUB_CLIENT_ID: ${{ secrets.HARBOR_GITHUB_CLIENT_ID }}
@@ -61,12 +79,67 @@ jobs:
           HARBOR_GOOGLE_CLIENT_SECRET: ${{ secrets.HARBOR_GOOGLE_CLIENT_SECRET }}
           HARBOR_SLACK_CLIENT_ID: ${{ secrets.HARBOR_SLACK_CLIENT_ID }}
           HARBOR_SLACK_CLIENT_SECRET: ${{ secrets.HARBOR_SLACK_CLIENT_SECRET }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Harbor ${{ github.ref_name }}"
-          releaseBody: "See the assets below to download Harbor for your platform."
-          releaseDraft: false
-          prerelease: false
-          tauriScript: npx tauri
-          projectPath: crates/harbor-desktop
-          args: --target ${{ matrix.target }}
+        working-directory: crates/harbor-desktop
+        run: npx tauri build --target ${{ matrix.target }}
+
+      - name: Upload release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BUNDLE_DIR="target/${{ matrix.target }}/release/bundle"
+
+          # Upload DMG
+          DMG=$(ls ${BUNDLE_DIR}/dmg/*.dmg)
+          gh release upload ${{ github.ref_name }} "${DMG}" --repo ${{ github.repository }} --clobber
+
+          # Upload signed .app.tar.gz (from tauri build, NOT re-packaged)
+          TARGZ="${BUNDLE_DIR}/macos/Harbor.app.tar.gz"
+          gh release upload ${{ github.ref_name }} "${TARGZ}#Harbor_${{ matrix.arch }}.app.tar.gz" --repo ${{ github.repository }} --clobber
+
+          # Upload signature
+          SIG="${BUNDLE_DIR}/macos/Harbor.app.tar.gz.sig"
+          gh release upload ${{ github.ref_name }} "${SIG}#Harbor_${{ matrix.arch }}.app.tar.gz.sig" --repo ${{ github.repository }} --clobber
+
+  publish-updater:
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release assets info
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get signatures from uploaded .sig files
+          gh release download ${{ github.ref_name }} --pattern "*.sig" --repo ${{ github.repository }} --dir sigs
+
+          AARCH64_SIG=$(cat sigs/Harbor_aarch64.app.tar.gz.sig)
+          X64_SIG=$(cat sigs/Harbor_x64.app.tar.gz.sig)
+
+          AARCH64_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Harbor_aarch64.app.tar.gz"
+          X64_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Harbor_x64.app.tar.gz"
+
+          # Read version from tag (strip leading 'v')
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+
+          cat > latest.json << ENDJSON
+          {
+            "version": "${VERSION}",
+            "notes": "Harbor ${VERSION}",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${AARCH64_SIG}",
+                "url": "${AARCH64_URL}"
+              },
+              "darwin-x86_64": {
+                "signature": "${X64_SIG}",
+                "url": "${X64_URL}"
+              }
+            }
+          }
+          ENDJSON
+
+          cat latest.json
+          gh release upload ${{ github.ref_name }} latest.json --repo ${{ github.repository }} --clobber
