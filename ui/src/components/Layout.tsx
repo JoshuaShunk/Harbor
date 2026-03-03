@@ -1,6 +1,9 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { Zap, Link2, Compass, Settings, Anchor, ArrowDownCircle, Loader2 } from "lucide-react";
+import { useEffect } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Zap, Link2, Compass, Settings, ArrowDownCircle, Loader2 } from "lucide-react";
+import logo from "../assets/logo.png";
 import type { LucideIcon } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
 import { useUpdate } from "../contexts/UpdateContext";
 
 interface NavItem {
@@ -18,6 +21,19 @@ const navItems: NavItem[] = [
 
 function Layout() {
   const { status, currentVersion, availableVersion, progress, downloadAndInstall } = useUpdate();
+  const navigate = useNavigate();
+
+  // Listen for native macOS menu events (settings navigation only — update check is handled in Rust)
+  useEffect(() => {
+    let cancelled = false;
+    const setup = listen<string>("menu-navigate", (event) => {
+      if (!cancelled) navigate(event.payload);
+    });
+    return () => {
+      cancelled = true;
+      setup.then((unlisten) => unlisten());
+    };
+  }, [navigate]);
 
   const showBanner = status === "available" || status === "downloading" || status === "ready";
 
@@ -35,7 +51,7 @@ function Layout() {
           data-tauri-drag-region
           className="h-12 flex items-center gap-2.5 px-5 border-b border-border-subtle"
         >
-          <Anchor className="w-4 h-4 text-accent" />
+          <img src={logo} alt="Harbor" className="h-5 w-auto" />
           <span className="text-sm font-semibold tracking-tight text-text-primary">
             Harbor
           </span>
