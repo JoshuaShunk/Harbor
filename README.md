@@ -90,6 +90,7 @@ Harbor uses a nautical theme — every command has a standard alias if you prefe
 | `harbor chest` | `vault` | Open the treasure chest (secret vault) |
 | `harbor cargo` | `filter` | Inspect or filter tool access per server |
 | `harbor scuttle` | `uninstall` | Scuttle the ship (uninstall Harbor) |
+| `harbor update` | — | Update Harbor to the latest version |
 
 ## Supported Hosts
 

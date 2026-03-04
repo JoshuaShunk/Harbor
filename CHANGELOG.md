@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-03-04
+
+### Added
+
+- `harbor update` command — self-update CLI via GitHub releases with SHA256 verification
+- Startup version check — passive "update available" notice on every command (cached 24h)
+
 ## [0.2.4] - 2026-03-03
 
 ### Added

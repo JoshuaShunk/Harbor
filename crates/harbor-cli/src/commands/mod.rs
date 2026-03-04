@@ -11,6 +11,7 @@ pub mod stop;
 pub mod sync;
 pub mod tools;
 pub mod uninstall;
+pub mod update;
 pub mod vault;
 
 use clap::{Parser, Subcommand};
@@ -82,6 +83,9 @@ pub enum Commands {
     #[command(alias = "uninstall")]
     Scuttle(uninstall::UninstallArgs),
 
+    /// Update Harbor to the latest version
+    Update(update::UpdateArgs),
+
     /// Run as an MCP stdio proxy through the Harbor gateway
     #[command(alias = "proxy", hide = true)]
     Relay(proxy::ProxyArgs),
@@ -102,6 +106,7 @@ pub async fn run(cli: Cli) -> Result<(), HarborError> {
         Commands::Cargo(args) => tools::run(args).await,
         Commands::Port(args) => port::run(args).await,
         Commands::Scuttle(args) => uninstall::run(args).await,
+        Commands::Update(args) => update::run(args).await,
         Commands::Relay(args) => proxy::run(args).await,
     }
 }

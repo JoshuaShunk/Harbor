@@ -6,6 +6,7 @@ pub mod gateway;
 pub mod marketplace;
 pub mod server;
 pub mod sync;
+pub mod updater;
 
 // Re-exports for convenience
 pub use auth::oauth::{OAuthProvider, OAuthTokens};

@@ -172,3 +172,30 @@ You can also uninstall via the install script:
     ```
   </Tab>
 </Tabs>
+
+## `harbor update`
+
+Update Harbor to the latest version. Checks GitHub releases, downloads the appropriate binary for your platform, verifies the SHA256 checksum, and replaces the current binary.
+
+```sh
+harbor update
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--check` | Just check for updates without installing |
+| `-y, --yes` | Skip the confirmation prompt |
+
+### Examples
+
+```sh
+# Check if an update is available
+harbor update --check
+
+# Update without confirmation
+harbor update --yes
+```
+
+Harbor also checks for updates automatically in the background. If a newer version is available, a notice appears after any command (checked once every 24 hours).
