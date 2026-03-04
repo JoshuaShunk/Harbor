@@ -104,7 +104,10 @@ pub fn provider_for_server(qualified_name: &str) -> Option<&'static str> {
         .to_lowercase();
     if server_part.contains("github") {
         Some("github")
-    } else if server_part.contains("google") || server_part.contains("gdrive") || server_part.contains("gmail") {
+    } else if server_part.contains("google")
+        || server_part.contains("gdrive")
+        || server_part.contains("gmail")
+    {
         Some("google")
     } else if server_part.contains("slack") {
         Some("slack")
