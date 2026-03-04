@@ -106,15 +106,9 @@ pub async fn run(args: UninstallArgs) -> Result<(), HarborError> {
     // Show what will be done
     println!();
     if args.dry_run {
-        println!(
-            "{} The following would be removed:",
-            "dry:".blue().bold()
-        );
+        println!("{} The following would be removed:", "dry:".blue().bold());
     } else {
-        println!(
-            "{} The following will be removed:",
-            "warn:".yellow().bold()
-        );
+        println!("{} The following will be removed:", "warn:".yellow().bold());
     }
     println!();
     for action in &actions {
@@ -150,9 +144,7 @@ pub async fn run(args: UninstallArgs) -> Result<(), HarborError> {
         io::stdout().flush().map_err(HarborError::Io)?;
 
         let mut input = String::new();
-        io::stdin()
-            .read_line(&mut input)
-            .map_err(HarborError::Io)?;
+        io::stdin().read_line(&mut input).map_err(HarborError::Io)?;
         let input = input.trim().to_lowercase();
         if input != "y" && input != "yes" {
             println!("Aborted.");
@@ -203,10 +195,7 @@ pub async fn run(args: UninstallArgs) -> Result<(), HarborError> {
     // Execute: remove Harbor.app
     if app_path.exists() {
         match std::fs::remove_dir_all(app_path) {
-            Ok(()) => println!(
-                "{} Removed /Applications/Harbor.app",
-                "ok:".green().bold()
-            ),
+            Ok(()) => println!("{} Removed /Applications/Harbor.app", "ok:".green().bold()),
             Err(e) => println!(
                 "{} Failed to remove Harbor.app: {} (try with sudo)",
                 "err:".red().bold(),
@@ -220,11 +209,7 @@ pub async fn run(args: UninstallArgs) -> Result<(), HarborError> {
         if let Ok(config_dir) = HarborConfig::default_dir() {
             if config_dir.exists() {
                 match std::fs::remove_dir_all(&config_dir) {
-                    Ok(()) => println!(
-                        "{} Removed {}",
-                        "ok:".green().bold(),
-                        config_dir.display()
-                    ),
+                    Ok(()) => println!("{} Removed {}", "ok:".green().bold(), config_dir.display()),
                     Err(e) => println!(
                         "{} Failed to remove {}: {}",
                         "err:".red().bold(),
