@@ -19,10 +19,11 @@
   <a href="https://github.com/JoshuaShunk/Harbor/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/JoshuaShunk/Harbor/ci.yml?style=flat-square&label=build" alt="Build Status"></a>
   <a href="https://github.com/JoshuaShunk/Harbor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/JoshuaShunk/Harbor?style=flat-square" alt="License"></a>
   <a href="https://github.com/JoshuaShunk/Harbor/releases"><img src="https://img.shields.io/github/downloads/JoshuaShunk/Harbor/total?style=flat-square&color=green" alt="Downloads"></a>
+  <a href="https://docs.harbormcp.ai"><img src="https://img.shields.io/badge/docs-harbormcp.ai-blue?style=flat-square" alt="Docs"></a>
 </p>
 
 <p align="center">
-  <a href="https://harbormcp.ai">Website</a> · <a href="https://github.com/JoshuaShunk/Harbor/releases/latest">Download</a> · <a href="https://github.com/JoshuaShunk/Harbor/discussions">Discussions</a> · <a href="https://github.com/JoshuaShunk/Harbor/issues">Issues</a>
+  <a href="https://harbormcp.ai">Website</a> · <a href="https://docs.harbormcp.ai">Docs</a> · <a href="https://github.com/JoshuaShunk/Harbor/releases/latest">Download</a> · <a href="https://github.com/JoshuaShunk/Harbor/discussions">Discussions</a> · <a href="https://github.com/JoshuaShunk/Harbor/issues">Issues</a>
 </p>
 
 ---
