@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-03-03
+
+### Added
+
+- CLI binary builds in release workflow (macOS x86/arm, Linux x86/arm)
+- CLI binary bundled inside macOS .app for symlink-based install
+- Install script at harbormcp.ai/install.sh (`curl -fsSL https://harbormcp.ai/install.sh | sh`)
+
 ## [0.2.2] - 2026-03-03
 
 ### Added
@@ -56,7 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Smithery marketplace search integration
 - `vault:` references in env vars resolved at sync time
 
-[Unreleased]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/JoshuaShunk/Harbor/compare/v0.1.0...v0.2.0
