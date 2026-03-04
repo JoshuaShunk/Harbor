@@ -1,11 +1,30 @@
 ---
 title: "Installation"
-description: "Download the Harbor desktop app or install the CLI."
+description: "Install Harbor with a single command, or download the desktop app."
 ---
+
+## Quick Install
+
+The fastest way to install Harbor:
+
+```sh
+curl -fsSL https://harbormcp.ai/install.sh | sh
+```
+
+On **macOS**, this installs the desktop app to `/Applications` and adds the `harbor` CLI to your PATH.
+On **Linux**, this installs the `harbor` CLI binary.
+
+### Options
+
+| Environment Variable | Description |
+|---------------------|-------------|
+| `HARBOR_VERSION` | Install a specific version (e.g. `HARBOR_VERSION=0.2.3`) |
+| `HARBOR_NO_APP` | Set to `1` for CLI-only install on macOS (skips desktop app) |
+| `HARBOR_INSTALL_DIR` | Override CLI install directory (Linux and `HARBOR_NO_APP` only) |
 
 ## Desktop App
 
-Download the latest release for your platform:
+You can also download the desktop app directly:
 
 <Card title="Download Harbor" icon="download" href="https://github.com/JoshuaShunk/Harbor/releases/latest">
   Available for macOS (Apple Silicon & Intel), Windows, and Linux.
@@ -15,19 +34,19 @@ Download the latest release for your platform:
 2. Run the installer (`.dmg` on macOS, `.msi` on Windows, `.deb`/`.AppImage` on Linux)
 3. Launch Harbor
 
-## CLI
+## CLI Only
 
-Install the CLI by building from source:
+Install the CLI without the desktop app:
 
 ```sh
+# macOS (CLI only, no .app)
+curl -fsSL https://harbormcp.ai/install.sh | HARBOR_NO_APP=1 sh
+
+# Or build from source
 git clone https://github.com/JoshuaShunk/Harbor.git
 cd Harbor
 cargo install --path crates/harbor-cli
 ```
-
-### Prerequisites
-
-- [Rust](https://rustup.rs/) (stable, 1.80+)
 
 Once installed, verify it's working:
 

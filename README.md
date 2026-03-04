@@ -49,23 +49,15 @@ Harbor is a desktop app and CLI that manages [MCP (Model Context Protocol)](http
 
 ## Quick Start
 
-### Desktop App
-
-Download the latest release for your platform:
-
-**[Download Harbor](https://github.com/JoshuaShunk/Harbor/releases/latest)**
-
-> Available for macOS (Apple Silicon & Intel), Windows, and Linux.
-
-### CLI
-
-Build from source:
+### Install
 
 ```sh
-git clone https://github.com/JoshuaShunk/Harbor.git
-cd Harbor
-cargo install --path crates/harbor-cli
+curl -fsSL https://harbormcp.ai/install.sh | sh
 ```
+
+On macOS this installs the desktop app and CLI together. On Linux it installs the CLI.
+
+> You can also [download the desktop app directly](https://github.com/JoshuaShunk/Harbor/releases/latest) for macOS, Windows, and Linux.
 
 ### Your First Server
 
