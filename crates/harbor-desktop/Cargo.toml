@@ -24,6 +24,7 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-dialog = "2"
 reqwest = { version = "0.12", features = ["json"] }
+fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
