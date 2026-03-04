@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Zap, Link2, Compass, Settings, ArrowDownCircle, Loader2, Radio } from "lucide-react";
+import { Zap, Link2, Compass, Settings, ArrowDownCircle, Loader2, Radio, BookOpen, ChevronRight } from "lucide-react";
 import logo from "../assets/logo.png";
 import logoDark from "../assets/logo-dark.png";
 import type { LucideIcon } from "lucide-react";
@@ -122,6 +122,20 @@ function Layout() {
             )}
           </div>
         )}
+
+        {/* Docs link */}
+        <div className="px-3 mb-1">
+          <a
+            href="https://docs.harbormcp.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-3 py-2 rounded-md text-[13px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors duration-150"
+          >
+            <BookOpen className="w-4 h-4 shrink-0" />
+            <span className="flex-1">Docs</span>
+            <ChevronRight className="w-3.5 h-3.5 text-text-muted shrink-0" />
+          </a>
+        </div>
 
         {/* Version footer */}
         <div className="px-5 py-3">

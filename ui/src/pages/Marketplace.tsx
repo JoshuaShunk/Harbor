@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Search, ExternalLink, BadgeCheck, Package, Anchor, ChevronDown, Lock } from "lucide-react";
-import { marketplaceSearch, oauthProviderForServer, oauthGetStatus, addServer, getGdriveCredentialPaths, type MarketplaceServer, type OAuthProviderInfo } from "../lib/tauri";
+import { marketplaceSearch, oauthGetStatus, addServer, getGdriveCredentialPaths, type MarketplaceServer, type OAuthProviderInfo } from "../lib/tauri";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
 import OAuthCharterModal from "../components/OAuthCharterModal";
@@ -12,6 +12,7 @@ function Marketplace() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchGen, setSearchGen] = useState(0);
 
   const handleSearch = async (cursor?: string) => {
     if (!cursor && !query.trim()) return;
@@ -26,6 +27,7 @@ function Marketplace() {
       }
       setNextCursor(result.next_cursor);
       setHasSearched(true);
+      if (!cursor) setSearchGen((g) => g + 1);
     } catch (e) {
       setError(String(e));
       if (!cursor) {
@@ -93,7 +95,7 @@ function Marketplace() {
           ) : (
             <div className="space-y-2">
               {servers.map((s) => (
-                <ServerResult key={s.name} server={s} />
+                <ServerResult key={s.name} server={s} searchGen={searchGen} />
               ))}
             </div>
           )}
@@ -135,7 +137,38 @@ const OAUTH_SERVER_CONFIG: Record<string, { pkg: string; envVar: string }> = {
   slack: { pkg: "@modelcontextprotocol/server-slack", envVar: "SLACK_BOT_TOKEN" },
 };
 
-function ServerResult({ server }: { server: MarketplaceServer }) {
+// Match an OAuth provider by checking env var names first, then falling back
+// to the server slug (segment after `/`) for servers that don't declare env vars.
+const ENV_VAR_PROVIDER_PATTERNS: Record<string, string> = {
+  GITHUB: "github",
+  GOOGLE: "google",
+  GDRIVE: "google",
+  GMAIL: "google",
+  SLACK: "slack",
+};
+
+function detectProvider(
+  qualifiedName: string,
+  envVars: { name: string }[],
+): string | null {
+  // 1. Check env var names (most reliable signal).
+  for (const ev of envVars) {
+    const upper = ev.name.toUpperCase();
+    for (const [keyword, provider] of Object.entries(ENV_VAR_PROVIDER_PATTERNS)) {
+      if (upper.includes(keyword)) return provider;
+    }
+  }
+  // 2. Fall back to slug (after last `/`) to catch servers with no declared env vars
+  //    like `ai.smithery/smithery-ai-github`. We intentionally skip the namespace
+  //    prefix to avoid `io.github.*` false positives.
+  const slug = (qualifiedName.split("/").pop() ?? qualifiedName).toLowerCase();
+  if (slug.includes("github")) return "github";
+  if (slug.includes("google") || slug.includes("gdrive") || slug.includes("gmail")) return "google";
+  if (slug.includes("slack")) return "slack";
+  return null;
+}
+
+function ServerResult({ server, searchGen }: { server: MarketplaceServer; searchGen: number }) {
   const [providerId, setProviderId] = useState<string | null>(null);
   const [oauthStatus, setOauthStatus] = useState<OAuthProviderInfo | null>(null);
   const [showCharter, setShowCharter] = useState(false);
@@ -151,13 +184,12 @@ function ServerResult({ server }: { server: MarketplaceServer }) {
   const hasRequiredEnvVars = registryEnvVars.some((e) => e.is_required);
 
   useEffect(() => {
-    oauthProviderForServer(server.name).then((id) => {
-      setProviderId(id);
-      if (id) {
-        oauthGetStatus(id).then(setOauthStatus);
-      }
-    });
-  }, [server.name]);
+    const id = detectProvider(server.name, registryEnvVars);
+    setProviderId(id);
+    if (id) {
+      oauthGetStatus(id).then(setOauthStatus);
+    }
+  }, [server.name, searchGen]);
 
   // Initialize envPairs from registry metadata.
   useEffect(() => {

@@ -93,14 +93,20 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
     ]
 }
 
-/// Look up the provider for a given server based on its Smithery qualified name.
+/// Look up the provider for a given server based on its registry qualified name.
+/// Matches on the server segment (after the last `/`) to avoid false positives
+/// from namespace prefixes like `io.github.*`.
 pub fn provider_for_server(qualified_name: &str) -> Option<&'static str> {
-    let lower = qualified_name.to_lowercase();
-    if lower.contains("github") {
+    let server_part = qualified_name
+        .rsplit('/')
+        .next()
+        .unwrap_or(qualified_name)
+        .to_lowercase();
+    if server_part.contains("github") {
         Some("github")
-    } else if lower.contains("google") || lower.contains("gdrive") || lower.contains("gmail") {
+    } else if server_part.contains("google") || server_part.contains("gdrive") || server_part.contains("gmail") {
         Some("google")
-    } else if lower.contains("slack") {
+    } else if server_part.contains("slack") {
         Some("slack")
     } else {
         None
