@@ -1675,7 +1675,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-cli"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "clap",
  "colored",
@@ -1692,7 +1692,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-core"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "async-stream",
  "axum",
@@ -1718,7 +1718,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-desktop"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "harbor-core",
