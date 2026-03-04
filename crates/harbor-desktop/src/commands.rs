@@ -16,7 +16,10 @@ impl AppState {
     }
 
     fn with_config_mut<T>(&self, f: impl FnOnce(&mut HarborConfig) -> T) -> Result<T, String> {
-        let mut config = self.config.lock().unwrap();
+        let mut config = self
+            .config
+            .lock()
+            .map_err(|_| "Config lock poisoned — restart the application".to_string())?;
         let result = f(&mut config);
         config.save().map_err(|e| e.to_string())?;
         Ok(result)
@@ -55,7 +58,10 @@ pub struct HarborStatusResponse {
 
 #[tauri::command]
 pub fn get_status(state: tauri::State<AppState>) -> Result<HarborStatusResponse, String> {
-    let config = state.config.lock().unwrap();
+    let config = state
+        .config
+        .lock()
+        .map_err(|_| "Config lock poisoned — restart the application".to_string())?;
 
     let servers: Vec<ServerStatus> = config
         .servers
@@ -152,7 +158,10 @@ pub fn toggle_server(
 
 #[tauri::command]
 pub fn sync_host(state: tauri::State<AppState>, host: String) -> Result<String, String> {
-    let config = state.config.lock().unwrap();
+    let config = state
+        .config
+        .lock()
+        .map_err(|_| "Config lock poisoned — restart the application".to_string())?;
     let conn = connector::get_connector(&host).map_err(|e| e.to_string())?;
 
     let servers = config.servers_for_host(&host);
@@ -193,7 +202,10 @@ pub fn sync_host(state: tauri::State<AppState>, host: String) -> Result<String, 
 
 #[tauri::command]
 pub fn sync_all(state: tauri::State<AppState>) -> Result<String, String> {
-    let config = state.config.lock().unwrap();
+    let config = state
+        .config
+        .lock()
+        .map_err(|_| "Config lock poisoned — restart the application".to_string())?;
 
     let connected_hosts: Vec<String> = config
         .hosts
@@ -452,7 +464,10 @@ pub async fn oauth_start_charter(
     // Determine the actual client credentials used (custom or default)
     let effective_client_id = custom_client_id
         .clone()
-        .unwrap_or_else(|| provider.default_client_id.clone());
+        .or_else(|| provider.default_client_id.clone())
+        .ok_or_else(|| {
+            format!("No client ID configured for {provider_id}. Set one via the vault.")
+        })?;
     let effective_client_secret = custom_client_secret
         .clone()
         .or_else(|| provider.default_client_secret.clone());

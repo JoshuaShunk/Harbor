@@ -41,7 +41,7 @@
 Harbor is a desktop app and CLI that manages [MCP (Model Context Protocol)](https://modelcontextprotocol.io) servers from a single place. Instead of editing JSON and TOML configs by hand across every host, you dock servers once and Harbor syncs them everywhere.
 
 - **One config, every host** — sync to Claude Code, Codex, VS Code, and Cursor simultaneously
-- **Marketplace** — search and install MCP servers from [Smithery](https://smithery.ai) without leaving the app
+- **Marketplace** — search and install MCP servers from the [MCP Registry](https://registry.modelcontextprotocol.io) without leaving the app
 - **Secret vault** — store API keys in your OS keychain, reference them as `vault:SECRET_NAME`
 - **HTTP/SSE gateway** — expose your MCP servers over HTTP for remote access and tool discovery
 - **Desktop + CLI** — full GUI built with Tauri, or use the CLI for automation and scripting
@@ -55,7 +55,7 @@ Download the latest release for your platform:
 
 **[Download Harbor](https://github.com/JoshuaShunk/Harbor/releases/latest)**
 
-> macOS (Apple Silicon & Intel) available now. Windows and Linux coming soon.
+> Available for macOS (Apple Silicon & Intel), Windows, and Linux.
 
 ### CLI
 
@@ -90,11 +90,10 @@ Harbor uses a nautical theme — every command has a standard alias if you prefe
 | `harbor undock` | `remove` | Undock a server and cast it off |
 | `harbor fleet` | `list` | Review your fleet of docked servers |
 | `harbor launch` | `start` | Launch a server out to sea |
-| `harbor anchor` | `stop` | Drop anchor on a running server |
 | `harbor manifest` | `status` | Read the harbor manifest |
 | `harbor signal` | `sync` | Signal connected hosts to update their charts |
 | `harbor lighthouse` | `gateway` | Light the lighthouse (HTTP/SSE gateway) |
-| `harbor scout` | `search` | Scout the seas for MCP servers on Smithery |
+| `harbor scout` | `search` | Scout the seas for MCP servers |
 | `harbor chest` | `vault` | Open the treasure chest (secret vault) |
 
 ## Supported Hosts
@@ -151,7 +150,7 @@ harbor-desktop  Desktop app — Tauri v2 shell wrapping the React frontend
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (1.75+)
+- [Rust](https://rustup.rs/) (stable, 1.80+)
 - [Node.js](https://nodejs.org/) (20+)
 - [Tauri CLI](https://v2.tauri.app/start/prerequisites/)
 

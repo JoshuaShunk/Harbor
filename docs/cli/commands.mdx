@@ -20,7 +20,7 @@ harbor dock --name <name> --command <command> [--args <args>...] [--env <KEY=VAL
 |------|-------------|
 | `--name` | Unique name for the server |
 | `--command` | Executable to run |
-| `--args` | Arguments to pass to the command |
+| `--args` | Arguments to pass to the command (comma-separated for multiple) |
 | `--env` | Environment variables (supports `vault:KEY` references) |
 
 **Example:**
@@ -63,18 +63,6 @@ Launch a server out to sea (start the process).
 
 ```sh
 harbor launch --name <name>
-```
-
----
-
-## harbor anchor
-
-<Info>Alias: `harbor stop`</Info>
-
-Drop anchor on a running server (stop the process).
-
-```sh
-harbor anchor --name <name>
 ```
 
 ---
@@ -129,7 +117,7 @@ See the [gateway guide](/guides/gateway) for endpoint details.
 
 <Info>Alias: `harbor search`</Info>
 
-Scout the seas for new MCP servers on the [Smithery](https://smithery.ai) registry.
+Scout the seas for new MCP servers on the official [MCP Registry](https://registry.modelcontextprotocol.io).
 
 ```sh
 harbor scout <query>

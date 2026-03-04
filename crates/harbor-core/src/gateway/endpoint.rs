@@ -60,15 +60,8 @@ impl Gateway {
             }
         })?;
 
-        println!("Harbor Gateway running at http://{addr}");
-        println!();
-        println!("Endpoints:");
-        println!("  POST /mcp     — Send JSON-RPC requests (MCP Streamable HTTP)");
-        println!("  GET  /sse     — SSE stream for server notifications");
-        println!("  GET  /tools   — Tool directory (all tools from all servers)");
-        println!("  GET  /servers — Running server list");
-        println!("  GET  /health  — Health check");
-        println!();
+        info!(addr = %addr, "Harbor Gateway running");
+        info!("Endpoints: POST /mcp, GET /sse, GET /tools, GET /servers, GET /health");
 
         // Start MCP servers in the background (don't block the HTTP server)
         let bg_state = self.state.clone();
@@ -100,7 +93,7 @@ impl Gateway {
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
                 tokio::signal::ctrl_c().await.ok();
-                println!("\nShutting down gateway...");
+                info!("Shutting down gateway...");
                 if let Err(e) = state.bridge_manager.stop_all().await {
                     error!(error = %e, "Error stopping servers during shutdown");
                 }

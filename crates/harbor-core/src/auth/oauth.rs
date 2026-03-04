@@ -26,7 +26,7 @@ pub struct OAuthProvider {
     pub auth_url: String,
     pub token_url: String,
     pub scopes: Vec<String>,
-    pub default_client_id: String,
+    pub default_client_id: Option<String>,
     pub default_client_secret: Option<String>,
     pub supports_pkce: bool,
     /// If true, the provider requires HTTPS redirect URIs.
@@ -56,9 +56,7 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
             auth_url: "https://github.com/login/oauth/authorize".into(),
             token_url: "https://github.com/login/oauth/access_token".into(),
             scopes: vec!["repo".into(), "read:org".into(), "read:packages".into()],
-            default_client_id: option_env!("HARBOR_GITHUB_CLIENT_ID")
-                .unwrap_or("REPLACE_WITH_GITHUB_CLIENT_ID")
-                .into(),
+            default_client_id: option_env!("HARBOR_GITHUB_CLIENT_ID").map(String::from),
             default_client_secret: option_env!("HARBOR_GITHUB_CLIENT_SECRET").map(String::from),
             supports_pkce: false,
             requires_https_redirect: false,
@@ -69,9 +67,7 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
             auth_url: "https://accounts.google.com/o/oauth2/v2/auth".into(),
             token_url: "https://oauth2.googleapis.com/token".into(),
             scopes: vec!["https://www.googleapis.com/auth/drive.readonly".into()],
-            default_client_id: option_env!("HARBOR_GOOGLE_CLIENT_ID")
-                .unwrap_or("REPLACE_WITH_GOOGLE_CLIENT_ID")
-                .into(),
+            default_client_id: option_env!("HARBOR_GOOGLE_CLIENT_ID").map(String::from),
             default_client_secret: option_env!("HARBOR_GOOGLE_CLIENT_SECRET").map(String::from),
             supports_pkce: true,
             requires_https_redirect: false,
@@ -89,9 +85,7 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
                 "users:read".into(),
                 "users.profile:read".into(),
             ],
-            default_client_id: option_env!("HARBOR_SLACK_CLIENT_ID")
-                .unwrap_or("REPLACE_WITH_SLACK_CLIENT_ID")
-                .into(),
+            default_client_id: option_env!("HARBOR_SLACK_CLIENT_ID").map(String::from),
             default_client_secret: option_env!("HARBOR_SLACK_CLIENT_SECRET").map(String::from),
             supports_pkce: false,
             requires_https_redirect: true,
@@ -263,7 +257,15 @@ pub async fn exchange_code(
     client_secret_override: Option<&str>,
 ) -> Result<OAuthTokens> {
     let client = reqwest::Client::new();
-    let client_id = client_id_override.unwrap_or(&provider.default_client_id);
+    let default_id;
+    let client_id = if let Some(o) = client_id_override {
+        o
+    } else if let Some(ref d) = provider.default_client_id {
+        d.as_str()
+    } else {
+        default_id = String::new();
+        &default_id
+    };
 
     let mut params: Vec<(&str, &str)> = vec![
         ("grant_type", "authorization_code"),
@@ -409,8 +411,10 @@ pub fn write_gdrive_credentials() -> Result<()> {
         .find(|p| p.id == "google")
         .ok_or_else(|| HarborError::OAuthError("Google provider not found".into()))?;
 
-    let client_id =
-        Vault::get("oauth:google:client_id").unwrap_or_else(|_| provider.default_client_id.clone());
+    let client_id = Vault::get("oauth:google:client_id")
+        .ok()
+        .or_else(|| provider.default_client_id.clone())
+        .unwrap_or_default();
     let client_secret = Vault::get("oauth:google:client_secret")
         .ok()
         .or_else(|| provider.default_client_secret.clone())
@@ -424,11 +428,10 @@ pub fn write_gdrive_credentials() -> Result<()> {
         }
     });
     let keys_path = creds_dir.join("gdrive-oauth-keys.json");
-    std::fs::write(
-        &keys_path,
-        serde_json::to_string_pretty(&oauth_keys).unwrap(),
-    )
-    .map_err(|e| HarborError::OAuthError(format!("Failed to write OAuth keys: {e}")))?;
+    let keys_json = serde_json::to_string_pretty(&oauth_keys)
+        .map_err(|e| HarborError::OAuthError(format!("Failed to serialize OAuth keys: {e}")))?;
+    std::fs::write(&keys_path, keys_json)
+        .map_err(|e| HarborError::OAuthError(format!("Failed to write OAuth keys: {e}")))?;
 
     // --- Credentials file (tokens) ---
     let access_token = Vault::get("oauth:google:access_token")?;
@@ -450,7 +453,9 @@ pub fn write_gdrive_credentials() -> Result<()> {
         creds["expiry_date"] = serde_json::Value::Number(serde_json::Number::from(expiry));
     }
     let creds_path = creds_dir.join("gdrive-credentials.json");
-    std::fs::write(&creds_path, serde_json::to_string_pretty(&creds).unwrap())
+    let creds_json = serde_json::to_string_pretty(&creds)
+        .map_err(|e| HarborError::OAuthError(format!("Failed to serialize credentials: {e}")))?;
+    std::fs::write(&creds_path, creds_json)
         .map_err(|e| HarborError::OAuthError(format!("Failed to write credentials: {e}")))?;
 
     info!("Google Drive credential files written to {:?}", creds_dir);
@@ -521,7 +526,13 @@ pub async fn start_oauth_flow(
 
     // Check for user-overridden client_id
     let client_id = Vault::get(&format!("oauth:{provider_id}:client_id"))
-        .unwrap_or_else(|_| provider.default_client_id.clone());
+        .ok()
+        .or_else(|| provider.default_client_id.clone())
+        .ok_or_else(|| {
+            HarborError::OAuthError(format!(
+                "No client ID configured for {provider_id}. Set one via the vault."
+            ))
+        })?;
 
     let scope_str = provider.scopes.join(" ");
 
