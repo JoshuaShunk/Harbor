@@ -6,8 +6,34 @@ on:
       - "v*"
 
 jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create draft release
+        id: create
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: '${{ github.ref_name }}',
+              name: 'Harbor ${{ github.ref_name }}',
+              body: 'See the assets below to download Harbor for your platform.',
+              draft: true,
+              prerelease: false
+            })
+            return data.id
+
   cli:
     name: CLI (${{ matrix.target }})
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -18,9 +44,6 @@ jobs:
             os: macos-latest
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-22.04
-            cross: true
 
     runs-on: ${{ matrix.os }}
 
@@ -31,34 +54,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config libssl-dev
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-
-      - name: Install cross-compilation tools
-        if: matrix.cross
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
-          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           key: cli-${{ matrix.target }}
 
+      - name: Create placeholder for Tauri resource check
+        run: mkdir -p crates/harbor-desktop/binaries && touch crates/harbor-desktop/binaries/harbor
+
       - name: Build CLI
         run: cargo build --release --target ${{ matrix.target }} -p harbor-cli
 
-      - name: Package (unix)
-        if: runner.os != 'Windows'
+      - name: Package
         run: |
           cd target/${{ matrix.target }}/release
           tar czf ../../../harbor-cli-${{ matrix.target }}.tar.gz harbor
           cd ../../..
-          shasum -a 256 harbor-cli-${{ matrix.target }}.tar.gz > harbor-cli-${{ matrix.target }}.tar.gz.sha256
+          if command -v shasum >/dev/null; then
+            shasum -a 256 harbor-cli-${{ matrix.target }}.tar.gz > harbor-cli-${{ matrix.target }}.tar.gz.sha256
+          else
+            sha256sum harbor-cli-${{ matrix.target }}.tar.gz > harbor-cli-${{ matrix.target }}.tar.gz.sha256
+          fi
 
       - name: Upload to release
         env:
@@ -71,6 +98,7 @@ jobs:
 
   desktop:
     name: Desktop (${{ matrix.target }})
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -148,7 +176,7 @@ jobs:
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli
 
-      - name: Build and release Tauri app
+      - name: Build and upload Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -161,11 +189,29 @@ jobs:
           HARBOR_SLACK_CLIENT_ID: ${{ secrets.HARBOR_SLACK_CLIENT_ID }}
           HARBOR_SLACK_CLIENT_SECRET: ${{ secrets.HARBOR_SLACK_CLIENT_SECRET }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Harbor ${{ github.ref_name }}"
-          releaseBody: "See the assets below to download Harbor for your platform."
-          releaseDraft: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          releaseDraft: true
           prerelease: false
           tauriScript: npx tauri
           projectPath: crates/harbor-desktop
           args: --target ${{ matrix.target }}
+
+  publish-release:
+    name: Publish Release
+    needs: [create-release, cli, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish release
+        uses: actions/github-script@v6
+        env:
+          release_id: ${{ needs.create-release.outputs.release_id }}
+        with:
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: process.env.release_id,
+              draft: false
+            })
