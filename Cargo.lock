@@ -1647,7 +1647,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-cli"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "clap",
  "colored",
@@ -1655,13 +1655,14 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "toml 0.8.2",
  "tracing",
  "tracing-subscriber",
 ]
 
 [[package]]
 name = "harbor-core"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -1686,7 +1687,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-desktop"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "harbor-core",
  "serde",

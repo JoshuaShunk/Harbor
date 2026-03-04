@@ -7,6 +7,7 @@ pub mod start;
 pub mod status;
 pub mod stop;
 pub mod sync;
+pub mod uninstall;
 pub mod vault;
 
 use clap::{Parser, Subcommand};
@@ -65,6 +66,10 @@ pub enum Commands {
     /// Open the treasure chest (secret vault)
     #[command(alias = "vault")]
     Chest(vault::VaultArgs),
+
+    /// Scuttle the ship — uninstall Harbor
+    #[command(alias = "uninstall")]
+    Scuttle(uninstall::UninstallArgs),
 }
 
 pub async fn run(cli: Cli) -> Result<(), HarborError> {
@@ -79,5 +84,6 @@ pub async fn run(cli: Cli) -> Result<(), HarborError> {
         Commands::Lighthouse(args) => gateway::run(args).await,
         Commands::Scout(args) => search::run(args).await,
         Commands::Chest(args) => vault::run(args).await,
+        Commands::Scuttle(args) => uninstall::run(args).await,
     }
 }

@@ -139,3 +139,27 @@ harbor chest list
 ```
 
 See the [vault guide](/guides/vault) for more details.
+
+---
+
+## harbor scuttle
+
+<Info>Alias: `harbor uninstall`</Info>
+
+Scuttle the ship — uninstall Harbor from your system. Removes Harbor-managed server entries from host configs, the app, and the CLI binary.
+
+```sh
+harbor scuttle [--purge] [--dry-run] [--yes]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--purge` | Also remove `~/.harbor/` config directory and vault secrets |
+| `--dry-run` | Preview what would be removed without making changes |
+| `-y`, `--yes` | Skip the confirmation prompt |
+
+You can also uninstall via the install script:
+
+```sh
+curl -fsSL https://harbormcp.ai/install.sh | sh -s -- --uninstall
+```

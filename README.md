@@ -87,6 +87,7 @@ Harbor uses a nautical theme — every command has a standard alias if you prefe
 | `harbor lighthouse` | `gateway` | Light the lighthouse (HTTP/SSE gateway) |
 | `harbor scout` | `search` | Scout the seas for MCP servers |
 | `harbor chest` | `vault` | Open the treasure chest (secret vault) |
+| `harbor scuttle` | `uninstall` | Scuttle the ship (uninstall Harbor) |
 
 ## Supported Hosts
 

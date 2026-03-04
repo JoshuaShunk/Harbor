@@ -18,7 +18,7 @@ On **Linux**, this installs the `harbor` CLI binary.
 
 | Environment Variable | Description |
 |---------------------|-------------|
-| `HARBOR_VERSION` | Install a specific version (e.g. `HARBOR_VERSION=0.2.3`) |
+| `HARBOR_VERSION` | Install a specific version (e.g. `HARBOR_VERSION=0.2.4`) |
 | `HARBOR_NO_APP` | Set to `1` for CLI-only install on macOS (skips desktop app) |
 | `HARBOR_INSTALL_DIR` | Override CLI install directory (Linux and `HARBOR_NO_APP` only) |
 
@@ -53,6 +53,22 @@ Once installed, verify it's working:
 ```sh
 harbor --version
 ```
+
+## Uninstalling
+
+To uninstall Harbor:
+
+```sh
+harbor scuttle
+```
+
+Or via the install script:
+
+```sh
+curl -fsSL https://harbormcp.ai/install.sh | sh -s -- --uninstall
+```
+
+Use `harbor scuttle --purge` to also remove config files and vault secrets.
 
 ## Next Steps
 
