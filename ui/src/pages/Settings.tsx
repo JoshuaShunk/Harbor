@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Trash2, Shield, Globe, FolderCog, Info, RefreshCw, ArrowDownCircle, CheckCircle2, AlertCircle, Loader2, Anchor, ChevronDown, ChevronUp, Sun, Moon, Monitor } from "lucide-react";
-import { getStatus, vaultSet, vaultDelete, vaultList, oauthListProviders, oauthRevokeCharter, oauthSetCustomCredentials, type HarborStatus, type OAuthProviderInfo } from "../lib/tauri";
+import { Trash2, Shield, FolderCog, Info, RefreshCw, ArrowDownCircle, CheckCircle2, AlertCircle, Loader2, Anchor, ChevronDown, ChevronUp, Sun, Moon, Monitor } from "lucide-react";
+import { vaultSet, vaultDelete, vaultList, oauthListProviders, oauthRevokeCharter, oauthSetCustomCredentials, type OAuthProviderInfo } from "../lib/tauri";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
 import { useUpdate } from "../contexts/UpdateContext";
@@ -42,7 +42,6 @@ function AppearanceSection() {
 }
 
 function Settings() {
-  const [status, setStatus] = useState<HarborStatus | null>(null);
   const [vaultKeys, setVaultKeys] = useState<string[]>([]);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
@@ -63,7 +62,6 @@ function Settings() {
   } = useUpdate();
 
   useEffect(() => {
-    getStatus().then(setStatus).catch(() => {});
     refreshVault();
     refreshProviders();
   }, []);
@@ -150,26 +148,6 @@ function Settings() {
       <div className="space-y-4">
         {/* Appearance */}
         <AppearanceSection />
-
-        {/* Gateway */}
-        <section className="p-4 rounded-lg bg-bg-element border border-border-subtle">
-          <div className="flex items-center gap-2 mb-3">
-            <Globe className="w-4 h-4 text-text-muted" />
-            <h2 className="text-[13px] font-medium text-text-primary">Lighthouse</h2>
-          </div>
-          <div className="text-[12px] space-y-2.5">
-            <div className="flex justify-between items-center">
-              <span className="text-text-secondary">Beacon port</span>
-              <span className="text-text-primary tabular-nums">{status?.gateway_port ?? 3100}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-text-secondary">Beacon</span>
-              <code className="px-1.5 py-0.5 rounded bg-bg-app font-mono text-[11px] text-text-primary">
-                http://127.0.0.1:{status?.gateway_port ?? 3100}/mcp
-              </code>
-            </div>
-          </div>
-        </section>
 
         {/* Config location */}
         <section className="p-4 rounded-lg bg-bg-element border border-border-subtle">

@@ -35,8 +35,12 @@ cargo clippy --workspace -- -D warnings
 
 ## Key Conventions
 
-- Nautical naming theme for CLI commands (dock, undock, fleet, launch, anchor, signal, lighthouse, scout, chest)
+- Nautical naming theme for CLI commands (dock, undock, fleet, launch, anchor, port, sync, lighthouse, scout, chest, cargo)
 - Config stored at `~/.harbor/config.toml`
 - Connectors do safe merges into host configs (never overwrite)
-- `vault:` prefix in env vars references OS keychain secrets (resolved at sync time)
+- Syncing routes through the lighthouse gateway for tool filtering, vault resolution, and hot reload
+- Host configs are auto-synced on dock/undock/toggle/connect
+- Desktop app auto-starts the lighthouse on launch
+- Users opt in to each host individually via `harbor port link <host>` or the Link button in the UI
+- `vault:` prefix in env vars references OS keychain secrets (resolved at runtime by the gateway)
 - Gateway starts HTTP server before initializing MCP servers (non-blocking)

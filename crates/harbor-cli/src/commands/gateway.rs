@@ -35,7 +35,15 @@ pub async fn run(args: GatewayArgs) -> Result<(), HarborError> {
     println!();
 
     let gateway = Gateway::new(config);
-    gateway.run().await?;
+
+    // Wire ctrl_c to the shutdown channel
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.ok();
+        let _ = shutdown_tx.send(());
+    });
+
+    gateway.run(shutdown_rx).await?;
 
     Ok(())
 }

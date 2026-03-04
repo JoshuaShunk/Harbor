@@ -62,11 +62,11 @@ On macOS this installs the desktop app and CLI together. On Linux it installs th
 ### Your First Server
 
 ```sh
-# Dock a server
-harbor dock --name memory --command npx --args @modelcontextprotocol/server-memory
+# Link a host
+harbor port link claude
 
-# Sync to all connected hosts
-harbor signal
+# Dock a server — it syncs automatically to linked hosts
+harbor dock --name memory --command npx --args @modelcontextprotocol/server-memory
 
 # Check your fleet
 harbor fleet
@@ -83,10 +83,12 @@ Harbor uses a nautical theme — every command has a standard alias if you prefe
 | `harbor fleet` | `list` | Review your fleet of docked servers |
 | `harbor launch` | `start` | Launch a server out to sea |
 | `harbor manifest` | `status` | Read the harbor manifest |
-| `harbor signal` | `sync` | Signal connected hosts to update their charts |
+| `harbor port` | `host` | Manage port connections (link/unlink hosts) |
+| `harbor sync` | `signal` | Sync server configs to linked hosts |
 | `harbor lighthouse` | `gateway` | Light the lighthouse (HTTP/SSE gateway) |
 | `harbor scout` | `search` | Scout the seas for MCP servers |
 | `harbor chest` | `vault` | Open the treasure chest (secret vault) |
+| `harbor cargo` | `filter` | Inspect or filter tool access per server |
 | `harbor scuttle` | `uninstall` | Scuttle the ship (uninstall Harbor) |
 
 ## Supported Hosts
@@ -115,17 +117,17 @@ harbor dock --name my-server --command npx --args my-mcp-server \
   --env OPENAI_API_KEY=vault:OPENAI_API_KEY
 ```
 
-Vault references are resolved at sync time — your secrets never end up in plain-text config files.
+Vault references are resolved at runtime — your secrets never end up in plain-text config files.
 
-### Gateway
+### Gateway (Lighthouse)
 
-Start an HTTP/SSE gateway to expose your MCP servers over the network:
+The lighthouse is Harbor's gateway server. The desktop app starts it automatically on launch. It handles tool filtering, vault resolution, hot reload, and exposes endpoints for tool discovery (`GET /tools`), JSON-RPC (`POST /mcp`), and server-sent events (`GET /sse`).
+
+For CLI users, start the gateway manually:
 
 ```sh
 harbor lighthouse --port 3100
 ```
-
-This starts a server with endpoints for tool discovery (`GET /tools`), JSON-RPC (`POST /mcp`), and server-sent events (`GET /sse`).
 
 ## Architecture
 

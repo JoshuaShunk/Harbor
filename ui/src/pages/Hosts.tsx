@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, Link2 } from "lucide-react";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
-import { getStatus, syncHost, syncAll, connectHost, disconnectHost, type HostStatus } from "../lib/tauri";
+import { getStatus, connectHost, disconnectHost, type HostStatus } from "../lib/tauri";
 
 function Hosts() {
   const [hosts, setHosts] = useState<HostStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncResult, setSyncResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = async () => {
@@ -22,17 +20,6 @@ function Hosts() {
   };
 
   useEffect(() => { refresh(); }, []);
-
-  const handleSync = async (host?: string) => {
-    try {
-      const result = host ? await syncHost(host) : await syncAll();
-      setSyncResult(result);
-      setTimeout(() => setSyncResult(null), 3000);
-    } catch (e) {
-      setError(String(e));
-      setTimeout(() => setError(null), 4000);
-    }
-  };
 
   const handleToggleConnect = async (host: string, connected: boolean) => {
     try {
@@ -73,24 +60,10 @@ function Hosts() {
         <div>
           <h1 className="text-lg font-semibold text-text-primary">Ports</h1>
           <p className="text-[13px] text-text-secondary mt-0.5">
-            Link and signal your ports to update their charts
+            Link hosts to sync your fleet through the lighthouse
           </p>
         </div>
-        <button
-          onClick={() => handleSync()}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors duration-150"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Signal All
-        </button>
       </div>
-
-      {/* Sync result toast */}
-      {syncResult && (
-        <div className="mb-4 px-3 py-2 rounded-md text-[13px] bg-green-muted text-green border border-green/20 animate-fade-in">
-          {syncResult}
-        </div>
-      )}
 
       {/* Error toast */}
       {error && (
@@ -113,7 +86,7 @@ function Hosts() {
               </div>
               {h.connected && (
                 <div className="text-[12px] text-text-secondary mt-1">
-                  {h.server_count} ship{h.server_count !== 1 ? "s" : ""} signaled
+                  {h.server_count} server{h.server_count !== 1 ? "s" : ""} synced
                 </div>
               )}
             </div>
@@ -125,14 +98,6 @@ function Hosts() {
               >
                 {h.connected ? "Cast Off" : "Link"}
               </button>
-              {h.connected && (
-                <button
-                  onClick={() => handleSync(h.name)}
-                  className="px-2.5 py-1 rounded-md text-[12px] border border-accent/40 text-accent hover:bg-accent-muted transition-colors duration-150"
-                >
-                  Signal
-                </button>
-              )}
             </div>
           </div>
         ))}
@@ -140,7 +105,7 @@ function Hosts() {
 
       {/* How sync works */}
       <div className="mt-10 p-4 rounded-lg bg-bg-element border border-border-subtle">
-        <h2 className="text-[13px] font-medium text-text-primary mb-2.5">How signaling works</h2>
+        <h2 className="text-[13px] font-medium text-text-primary mb-2.5">How syncing works</h2>
         <ul className="text-[12px] text-text-secondary space-y-1.5 list-none">
           <li className="flex gap-2">
             <span className="text-text-muted select-none">-</span>
@@ -148,15 +113,19 @@ function Hosts() {
           </li>
           <li className="flex gap-2">
             <span className="text-text-muted select-none">-</span>
-            Rigged ships are merged into each port's charts
+            Linked hosts receive a single <code className="px-1 py-0.5 rounded bg-bg-app font-mono text-[11px]">harbor relay</code> entry that routes through the lighthouse
           </li>
           <li className="flex gap-2">
             <span className="text-text-muted select-none">-</span>
-            Existing non-Harbor entries in port configs are preserved
+            Servers are automatically synced when you dock, undock, or toggle
           </li>
           <li className="flex gap-2">
             <span className="text-text-muted select-none">-</span>
-            Chest references (<code className="px-1 py-0.5 rounded bg-bg-app font-mono text-[11px]">vault:key_name</code>) are resolved at signal time
+            Tool filters, vault secrets, and hot reload are handled by the lighthouse at runtime
+          </li>
+          <li className="flex gap-2">
+            <span className="text-text-muted select-none">-</span>
+            Existing non-Harbor entries in host configs are preserved
           </li>
         </ul>
       </div>

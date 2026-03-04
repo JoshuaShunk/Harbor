@@ -1,14 +1,238 @@
 import { useEffect, useState } from "react";
-import { Plus, X, Trash2, Zap, Lock } from "lucide-react";
+import { Plus, X, Trash2, Zap, Lock, Filter, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
-import { getStatus, addServer, removeServer, toggleServer, type ServerStatus } from "../lib/tauri";
+import {
+  getStatus,
+  addServer,
+  removeServer,
+  toggleServer,
+  getToolFilters,
+  setToolAllowlist,
+  setToolBlocklist,
+  discoverTools,
+  type ServerStatus,
+  type ToolFilterInfo,
+  type DiscoveredTool,
+} from "../lib/tauri";
+
+function ToolFilterPanel({ serverName }: { serverName: string }) {
+  const [filters, setFilters] = useState<ToolFilterInfo | null>(null);
+  const [tools, setTools] = useState<DiscoveredTool[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [discovering, setDiscovering] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadFilters = async () => {
+    try {
+      const f = await getToolFilters(serverName);
+      setFilters(f);
+    } catch (e) {
+      showError(String(e));
+    }
+  };
+
+  const loadTools = async () => {
+    setDiscovering(true);
+    setDiscoveryError(null);
+    try {
+      const discovered = await discoverTools(serverName);
+      setTools(discovered);
+    } catch (e) {
+      setDiscoveryError(String(e));
+      setTools([]);
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  const load = async () => {
+    setLoading(true);
+    await Promise.all([loadFilters(), loadTools()]);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [serverName]);
+
+  const showError = (msg: string) => {
+    setError(msg);
+    setTimeout(() => setError(null), 4000);
+  };
+
+  const isToolBlocked = (toolName: string): boolean => {
+    const blocklist = filters?.tool_blocklist ?? [];
+    return blocklist.includes(toolName);
+  };
+
+  const isToolAllowed = (toolName: string): boolean => {
+    const allowlist = filters?.tool_allowlist;
+    if (!allowlist) return true; // no allowlist = all allowed
+    return allowlist.includes(toolName);
+  };
+
+  const handleToggleTool = async (toolName: string) => {
+    const blocked = isToolBlocked(toolName);
+    try {
+      if (blocked) {
+        // Unblock: remove from blocklist
+        const updated = (filters?.tool_blocklist ?? []).filter((t) => t !== toolName);
+        await setToolBlocklist(serverName, updated.length > 0 ? updated : null);
+      } else {
+        // Block: add to blocklist
+        const existing = filters?.tool_blocklist ?? [];
+        await setToolBlocklist(serverName, [...existing, toolName]);
+      }
+      await loadFilters();
+    } catch (e) {
+      showError(String(e));
+    }
+  };
+
+  const handleBlockAll = async () => {
+    try {
+      const allNames = tools.map((t) => t.name);
+      await setToolBlocklist(serverName, allNames);
+      await loadFilters();
+    } catch (e) {
+      showError(String(e));
+    }
+  };
+
+  const handleUnblockAll = async () => {
+    try {
+      await setToolBlocklist(serverName, null);
+      await loadFilters();
+    } catch (e) {
+      showError(String(e));
+    }
+  };
+
+  if (loading) {
+    return <div className="h-8 rounded bg-bg-app animate-pulse mt-2" />;
+  }
+
+  const blockedCount = tools.filter((t) => isToolBlocked(t.name)).length;
+  const totalCount = tools.length;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border-subtle">
+      {error && (
+        <div className="mb-2 px-2 py-1 rounded text-[11px] bg-red-muted text-red border border-red/20">
+          {error}
+        </div>
+      )}
+
+      {/* Header with refresh */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[11px] text-text-muted font-medium">
+          Tools{totalCount > 0 && ` (${totalCount - blockedCount}/${totalCount} active)`}
+        </div>
+        <div className="flex items-center gap-2">
+          {totalCount > 0 && (
+            <>
+              <button
+                onClick={handleUnblockAll}
+                className="text-[11px] text-text-muted hover:text-green transition-colors"
+              >
+                Enable all
+              </button>
+              <span className="text-text-muted text-[11px]">/</span>
+              <button
+                onClick={handleBlockAll}
+                className="text-[11px] text-text-muted hover:text-red transition-colors"
+              >
+                Disable all
+              </button>
+            </>
+          )}
+          <button
+            onClick={loadTools}
+            disabled={discovering}
+            className="p-0.5 rounded text-text-muted hover:text-text-primary transition-colors disabled:opacity-40"
+            title="Refresh tools from gateway"
+          >
+            <RefreshCw className={`w-3 h-3 ${discovering ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Discovery error */}
+      {discoveryError && (
+        <div className="mb-2 px-2 py-1.5 rounded text-[11px] bg-bg-app border border-border-default text-text-secondary">
+          Could not discover tools: {discoveryError}
+        </div>
+      )}
+
+      {/* Tool list */}
+      {totalCount > 0 ? (
+        <div className="space-y-0.5">
+          {tools.map((tool) => {
+            const blocked = isToolBlocked(tool.name);
+            return (
+              <button
+                key={tool.name}
+                onClick={() => handleToggleTool(tool.name)}
+                className={`w-full flex items-start gap-2 px-2 py-1.5 rounded text-left transition-colors duration-100 ${
+                  blocked
+                    ? "opacity-50 hover:opacity-70"
+                    : "hover:bg-bg-hover"
+                }`}
+              >
+                <div
+                  className={`mt-0.5 w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center transition-colors ${
+                    blocked
+                      ? "border-border-default bg-bg-app"
+                      : "border-accent bg-accent"
+                  }`}
+                >
+                  {!blocked && (
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className={`text-[12px] font-mono ${blocked ? "text-text-muted line-through" : "text-text-primary"}`}>
+                    {tool.name}
+                  </div>
+                  {tool.description && (
+                    <div className="text-[11px] text-text-muted truncate">
+                      {tool.description}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : !discoveryError ? (
+        <div className="text-[11px] text-text-muted">
+          No tools discovered for this server.
+        </div>
+      ) : null}
+
+      {/* Host overrides summary */}
+      {Object.keys(filters?.tool_hosts ?? {}).length > 0 && (
+        <div className="mt-2 pt-2 border-t border-border-subtle">
+          <div className="text-[11px] text-text-muted font-medium mb-1">Host overrides</div>
+          {Object.entries(filters!.tool_hosts).map(([host, hostTools]) => (
+            <div key={host} className="text-[11px] text-text-secondary font-mono">
+              <span className="text-yellow">{host}</span>: {hostTools.join(", ")}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Servers() {
   const [servers, setServers] = useState<ServerStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedServer, setExpandedServer] = useState<string | null>(null);
 
   // Add form state
   const [newName, setNewName] = useState("");
@@ -56,6 +280,7 @@ function Servers() {
   const handleRemove = async (name: string) => {
     try {
       await removeServer(name);
+      if (expandedServer === name) setExpandedServer(null);
       refresh();
     } catch (e) {
       showError(String(e));
@@ -209,29 +434,57 @@ function Servers() {
           {servers.map((s) => (
             <div
               key={s.name}
-              className="stagger-item flex items-center justify-between p-4 rounded-lg bg-bg-element border border-border-subtle hover:border-border-default transition-colors duration-150"
+              className="stagger-item rounded-lg bg-bg-element border border-border-subtle hover:border-border-default transition-colors duration-150"
             >
-              <div>
-                <div className="text-[13px] font-medium text-text-primary">{s.name}</div>
-                <div className="text-[12px] text-text-muted font-mono mt-0.5">
-                  {s.command}
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setExpandedServer(expandedServer === s.name ? null : s.name)}
+                    className="p-0.5 rounded text-text-muted hover:text-text-primary transition-colors"
+                  >
+                    {expandedServer === s.name ? (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                  <div>
+                    <div className="text-[13px] font-medium text-text-primary">{s.name}</div>
+                    <div className="text-[12px] text-text-muted font-mono mt-0.5">
+                      {s.command}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setExpandedServer(expandedServer === s.name ? null : s.name)}
+                    className="p-1 rounded-md text-text-muted hover:text-accent hover:bg-accent-muted transition-colors duration-150"
+                    title="Tool filters"
+                  >
+                    <Filter className="w-3.5 h-3.5" />
+                  </button>
+                  <StatusBadge status={(s.running ? "running" : s.enabled ? "enabled" : "disabled") as Status} />
+                  <button
+                    onClick={() => handleToggle(s.name, s.enabled)}
+                    className="px-2.5 py-1 rounded-md text-[12px] border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors duration-150"
+                  >
+                    {s.enabled ? "Moor" : "Rig"}
+                  </button>
+                  <button
+                    onClick={() => handleRemove(s.name)}
+                    className="p-1 rounded-md text-text-muted hover:text-red hover:bg-red-muted transition-colors duration-150"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <StatusBadge status={(s.running ? "running" : s.enabled ? "enabled" : "disabled") as Status} />
-                <button
-                  onClick={() => handleToggle(s.name, s.enabled)}
-                  className="px-2.5 py-1 rounded-md text-[12px] border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors duration-150"
-                >
-                  {s.enabled ? "Moor" : "Rig"}
-                </button>
-                <button
-                  onClick={() => handleRemove(s.name)}
-                  className="p-1 rounded-md text-text-muted hover:text-red hover:bg-red-muted transition-colors duration-150"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
+
+              {/* Tool filter panel */}
+              {expandedServer === s.name && (
+                <div className="px-4 pb-4 animate-fade-in">
+                  <ToolFilterPanel serverName={s.name} />
+                </div>
+              )}
             </div>
           ))}
         </div>

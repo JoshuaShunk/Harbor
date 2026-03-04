@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Zap, Link2, Compass, Settings, ArrowDownCircle, Loader2 } from "lucide-react";
+import { Zap, Link2, Compass, Settings, ArrowDownCircle, Loader2, Radio } from "lucide-react";
 import logo from "../assets/logo.png";
 import logoDark from "../assets/logo-dark.png";
 import type { LucideIcon } from "lucide-react";
@@ -18,6 +18,7 @@ const navItems: NavItem[] = [
   { to: "/servers", label: "Fleet", icon: Zap },
   { to: "/hosts", label: "Ports", icon: Link2 },
   { to: "/marketplace", label: "Scout", icon: Compass },
+  { to: "/lighthouse", label: "Lighthouse", icon: Radio },
   { to: "/settings", label: "Helm", icon: Settings },
 ];
 

@@ -120,6 +120,28 @@ impl Connector for VsCodeConnector {
         Ok(servers)
     }
 
+    fn remove_servers(&self, names: &[String]) -> Result<()> {
+        let path = self.config_path()?;
+        if !path.exists() {
+            return Ok(());
+        }
+
+        let content = std::fs::read_to_string(&path).map_err(HarborError::Io)?;
+        let mut config: VsCodeMcpConfig =
+            serde_json::from_str(&content).map_err(|e| HarborError::ConnectorError {
+                host: "vscode".to_string(),
+                reason: format!("Failed to parse {}: {}", path.display(), e),
+            })?;
+
+        for name in names {
+            config.servers.remove(name);
+        }
+
+        let content = serde_json::to_string_pretty(&config)?;
+        std::fs::write(&path, content).map_err(HarborError::Io)?;
+        Ok(())
+    }
+
     fn write_servers(&self, servers: &BTreeMap<String, HostServerEntry>) -> Result<()> {
         let path = self.config_path()?;
 

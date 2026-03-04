@@ -6,6 +6,7 @@ import Servers from "./pages/Servers";
 import Hosts from "./pages/Hosts";
 import Settings from "./pages/Settings";
 import Marketplace from "./pages/Marketplace";
+import Lighthouse from "./pages/Lighthouse";
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
             <Route path="/servers" element={<Servers />} />
             <Route path="/hosts" element={<Hosts />} />
             <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/lighthouse" element={<Lighthouse />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Routes>

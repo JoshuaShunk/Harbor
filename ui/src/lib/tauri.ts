@@ -58,14 +58,6 @@ export async function toggleServer(name: string, enabled: boolean): Promise<void
   return invoke("toggle_server", { name, enabled });
 }
 
-export async function syncHost(host: string): Promise<string> {
-  return invoke<string>("sync_host", { host });
-}
-
-export async function syncAll(): Promise<string> {
-  return invoke<string>("sync_all");
-}
-
 export async function connectHost(host: string): Promise<void> {
   return invoke("connect_host", { host });
 }
@@ -90,6 +82,59 @@ export async function vaultDelete(key: string): Promise<void> {
 
 export async function vaultList(): Promise<string[]> {
   return invoke<string[]>("vault_list");
+}
+
+// --- Tool Discovery ---
+
+export interface DiscoveredTool {
+  name: string;
+  description: string | null;
+}
+
+export async function discoverTools(server: string): Promise<DiscoveredTool[]> {
+  return invoke<DiscoveredTool[]>("discover_tools", { server });
+}
+
+// --- Tool Filters ---
+
+export interface ToolFilterInfo {
+  tool_allowlist: string[] | null;
+  tool_blocklist: string[] | null;
+  tool_hosts: Record<string, string[]>;
+}
+
+export async function getToolFilters(server: string): Promise<ToolFilterInfo> {
+  return invoke<ToolFilterInfo>("get_tool_filters", { server });
+}
+
+export async function setToolAllowlist(server: string, tools: string[] | null): Promise<void> {
+  return invoke("set_tool_allowlist", { server, tools });
+}
+
+export async function setToolBlocklist(server: string, tools: string[] | null): Promise<void> {
+  return invoke("set_tool_blocklist", { server, tools });
+}
+
+export async function setToolHostOverride(
+  server: string,
+  host: string,
+  tools: string[] | null,
+): Promise<void> {
+  return invoke("set_tool_host_override", { server, host, tools });
+}
+
+// --- Gateway ---
+
+export async function startGateway(): Promise<string> {
+  return invoke<string>("start_gateway");
+}
+
+export async function stopGateway(): Promise<string> {
+  return invoke<string>("stop_gateway");
+}
+
+export async function gatewayStatus(): Promise<boolean> {
+  return invoke<boolean>("gateway_status");
 }
 
 // --- Marketplace ---

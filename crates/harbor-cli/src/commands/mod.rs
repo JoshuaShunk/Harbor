@@ -1,12 +1,15 @@
 pub mod add;
 pub mod gateway;
 pub mod list;
+pub mod port;
+pub mod proxy;
 pub mod remove;
 pub mod search;
 pub mod start;
 pub mod status;
 pub mod stop;
 pub mod sync;
+pub mod tools;
 pub mod uninstall;
 pub mod vault;
 
@@ -51,9 +54,9 @@ pub enum Commands {
     #[command(alias = "status")]
     Manifest(status::StatusArgs),
 
-    /// Signal connected ports to update their charts
-    #[command(alias = "sync")]
-    Signal(sync::SyncArgs),
+    /// Sync server configs to connected hosts
+    #[command(alias = "signal")]
+    Sync(sync::SyncArgs),
 
     /// Light the lighthouse (HTTP/SSE gateway)
     #[command(alias = "gateway")]
@@ -67,9 +70,21 @@ pub enum Commands {
     #[command(alias = "vault")]
     Chest(vault::VaultArgs),
 
+    /// Inspect or filter a ship's cargo manifest (tool filters)
+    #[command(alias = "filter")]
+    Cargo(tools::ToolsArgs),
+
+    /// Manage port connections to hosts
+    #[command(alias = "host")]
+    Port(port::PortArgs),
+
     /// Scuttle the ship — uninstall Harbor
     #[command(alias = "uninstall")]
     Scuttle(uninstall::UninstallArgs),
+
+    /// Run as an MCP stdio proxy through the Harbor gateway
+    #[command(alias = "proxy", hide = true)]
+    Relay(proxy::ProxyArgs),
 }
 
 pub async fn run(cli: Cli) -> Result<(), HarborError> {
@@ -80,10 +95,13 @@ pub async fn run(cli: Cli) -> Result<(), HarborError> {
         Commands::Launch(args) => start::run(args).await,
         Commands::Anchor(args) => stop::run(args).await,
         Commands::Manifest(args) => status::run(args).await,
-        Commands::Signal(args) => sync::run(args).await,
+        Commands::Sync(args) => sync::run(args).await,
         Commands::Lighthouse(args) => gateway::run(args).await,
         Commands::Scout(args) => search::run(args).await,
         Commands::Chest(args) => vault::run(args).await,
+        Commands::Cargo(args) => tools::run(args).await,
+        Commands::Port(args) => port::run(args).await,
         Commands::Scuttle(args) => uninstall::run(args).await,
+        Commands::Relay(args) => proxy::run(args).await,
     }
 }
