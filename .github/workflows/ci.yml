@@ -29,6 +29,7 @@ jobs:
         with:
           components: clippy
       - uses: swatinem/rust-cache@v2
+      - run: mkdir -p crates/harbor-desktop/binaries && touch crates/harbor-desktop/binaries/harbor
       - run: cargo clippy --workspace -- -D warnings
 
   test:
@@ -38,6 +39,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
+      - run: mkdir -p crates/harbor-desktop/binaries && touch crates/harbor-desktop/binaries/harbor
       - run: cargo test --workspace
 
   frontend:
