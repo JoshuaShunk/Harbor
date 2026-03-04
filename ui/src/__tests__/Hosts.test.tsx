@@ -51,21 +51,7 @@ describe("Hosts page", () => {
     });
   });
 
-  it("shows Signal All button", async () => {
-    mockedInvoke.mockResolvedValue({
-      servers: [],
-      hosts: [],
-      gateway_port: 3100,
-    });
-
-    renderWithRouter(<Hosts />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Signal All")).toBeInTheDocument();
-    });
-  });
-
-  it("shows ship count for connected hosts", async () => {
+  it("shows server count for connected hosts", async () => {
     mockedInvoke.mockResolvedValue({
       servers: [],
       hosts: [
@@ -84,7 +70,7 @@ describe("Hosts page", () => {
     renderWithRouter(<Hosts />);
 
     await waitFor(() => {
-      expect(screen.getByText("3 ships signaled")).toBeInTheDocument();
+      expect(screen.getByText("3 servers synced")).toBeInTheDocument();
     });
   });
 });

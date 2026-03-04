@@ -5,6 +5,7 @@ pub mod error;
 pub mod gateway;
 pub mod marketplace;
 pub mod server;
+pub mod sync;
 
 // Re-exports for convenience
 pub use auth::oauth::{OAuthProvider, OAuthTokens};

@@ -150,6 +150,9 @@ mod tests {
             enabled,
             auto_start: false,
             hosts: BTreeMap::new(),
+            tool_allowlist: None,
+            tool_blocklist: None,
+            tool_hosts: BTreeMap::new(),
         }
     }
 
@@ -254,6 +257,9 @@ mod tests {
             enabled: true,
             auto_start: false,
             hosts: BTreeMap::new(),
+            tool_allowlist: None,
+            tool_blocklist: None,
+            tool_hosts: BTreeMap::new(),
         };
         let status = manager.status("test", &config);
         assert_eq!(status.command, "npx -y @mcp/server");

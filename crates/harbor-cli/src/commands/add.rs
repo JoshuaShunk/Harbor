@@ -1,5 +1,6 @@
 use clap::Args;
 use colored::Colorize;
+use harbor_core::sync::sync_all_hosts;
 use harbor_core::{HarborConfig, HarborError, ServerConfig};
 use std::collections::BTreeMap;
 
@@ -50,6 +51,9 @@ pub async fn run(args: AddArgs) -> Result<(), HarborError> {
         enabled: !args.disabled,
         auto_start: args.auto_start,
         hosts: BTreeMap::new(),
+        tool_allowlist: None,
+        tool_blocklist: None,
+        tool_hosts: BTreeMap::new(),
     };
 
     let name = args.name.clone();
@@ -57,11 +61,14 @@ pub async fn run(args: AddArgs) -> Result<(), HarborError> {
     config.save()?;
 
     println!("{} Server '{}' docked", "ok:".green().bold(), name.cyan());
-    println!(
-        "  Run {} to launch it, or {} to signal your hosts",
-        format!("harbor launch {name}").yellow(),
-        "harbor signal".yellow()
-    );
+
+    // Auto-sync to all connected hosts
+    let results = sync_all_hosts(&config);
+    for (_, result) in &results {
+        if let Ok(r) = result {
+            println!("  {} Synced to {}", "=>".dimmed(), r.display_name.cyan());
+        }
+    }
 
     Ok(())
 }

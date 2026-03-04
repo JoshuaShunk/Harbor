@@ -2,22 +2,30 @@ use crate::config::HarborConfig;
 use crate::error::Result;
 use crate::gateway::bridge::{BridgeManager, ToolInfo};
 use crate::gateway::stdio::{JsonRpcRequest, JsonRpcResponse};
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use futures::stream;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Shared gateway state
 pub struct GatewayState {
     pub bridge_manager: BridgeManager,
     pub config: Mutex<HarborConfig>,
+    /// Broadcast channel for SSE events (tools_changed, etc.)
+    pub events_tx: tokio::sync::broadcast::Sender<GatewayEvent>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type")]
+pub enum GatewayEvent {
+    #[serde(rename = "tools_changed")]
+    ToolsChanged { tool_count: usize },
 }
 
 /// The Harbor Gateway — an HTTP server that bridges MCP clients to stdio servers.
@@ -30,22 +38,28 @@ impl Gateway {
     /// Create a new gateway from Harbor config.
     pub fn new(config: HarborConfig) -> Self {
         let port = config.harbor.gateway_port;
+        let (events_tx, _) = tokio::sync::broadcast::channel(16);
         Self {
             port,
             state: Arc::new(GatewayState {
                 bridge_manager: BridgeManager::new(),
                 config: Mutex::new(config),
+                events_tx,
             }),
         }
     }
 
     /// Launch the HTTP gateway, then start MCP servers in the background.
-    pub async fn run(self) -> Result<()> {
+    ///
+    /// The `shutdown_rx` oneshot is used to trigger graceful shutdown.
+    /// Drop the corresponding `Sender` or send `()` to stop the gateway.
+    pub async fn run(self, shutdown_rx: tokio::sync::oneshot::Receiver<()>) -> Result<()> {
         let app = Router::new()
             .route("/health", get(health))
             .route("/tools", get(list_tools))
             .route("/servers", get(list_servers))
             .route("/mcp", post(handle_mcp_request))
+            .route("/reload", post(handle_reload))
             .route("/sse", get(handle_sse))
             .layer(CorsLayer::permissive())
             .with_state(self.state.clone());
@@ -61,7 +75,9 @@ impl Gateway {
         })?;
 
         info!(addr = %addr, "Harbor Gateway running");
-        info!("Endpoints: POST /mcp, GET /sse, GET /tools, GET /servers, GET /health");
+        info!(
+            "Endpoints: POST /mcp, POST /reload, GET /sse, GET /tools, GET /servers, GET /health"
+        );
 
         // Start MCP servers in the background (don't block the HTTP server)
         let bg_state = self.state.clone();
@@ -88,11 +104,11 @@ impl Gateway {
             }
         });
 
-        // Graceful shutdown on Ctrl+C
+        // Graceful shutdown when the oneshot fires
         let state = self.state.clone();
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
-                tokio::signal::ctrl_c().await.ok();
+                let _ = shutdown_rx.await;
                 info!("Shutting down gateway...");
                 if let Err(e) = state.bridge_manager.stop_all().await {
                     error!(error = %e, "Error stopping servers during shutdown");
@@ -129,8 +145,32 @@ struct ToolsResponse {
     count: usize,
 }
 
-async fn list_tools(State(state): State<Arc<GatewayState>>) -> Json<ToolsResponse> {
-    let tools = state.bridge_manager.list_tools().await;
+#[derive(Deserialize, Default)]
+struct ToolsQuery {
+    /// Filter tools for a specific host (applies host-specific tool overrides)
+    host: Option<String>,
+    /// Filter tools from a specific server
+    server: Option<String>,
+}
+
+async fn list_tools(
+    State(state): State<Arc<GatewayState>>,
+    Query(query): Query<ToolsQuery>,
+) -> Json<ToolsResponse> {
+    let mut tools = if let Some(ref host) = query.host {
+        let config = state.config.lock().await;
+        state
+            .bridge_manager
+            .list_tools_for_host(host, &config)
+            .await
+    } else {
+        state.bridge_manager.list_tools().await
+    };
+
+    if let Some(ref server) = query.server {
+        tools.retain(|t| t.server == *server);
+    }
+
     let count = tools.len();
     Json(ToolsResponse { tools, count })
 }
@@ -157,8 +197,23 @@ async fn handle_mcp_request(
 ) -> std::result::Result<Json<JsonRpcResponse>, StatusCode> {
     match request.method.as_str() {
         "tools/list" => {
-            // Unified tool directory
-            let tools = state.bridge_manager.list_tools().await;
+            // Unified tool directory, optionally filtered by host
+            let host = request
+                .params
+                .as_ref()
+                .and_then(|p| p.get("_harbor_host"))
+                .and_then(|h| h.as_str())
+                .map(String::from);
+
+            let tools = if let Some(ref host) = host {
+                let config = state.config.lock().await;
+                state
+                    .bridge_manager
+                    .list_tools_for_host(host, &config)
+                    .await
+            } else {
+                state.bridge_manager.list_tools().await
+            };
             let mcp_tools: Vec<serde_json::Value> = tools
                 .iter()
                 .map(|t| {
@@ -194,19 +249,25 @@ async fn handle_mcp_request(
                 .cloned()
                 .unwrap_or(serde_json::json!({}));
 
+            info!(tool = %tool_name, "tools/call");
+
             match state.bridge_manager.call_tool(tool_name, arguments).await {
                 Ok(response) => {
+                    info!(tool = %tool_name, "tools/call succeeded");
                     // Use the original request id
                     Ok(Json(JsonRpcResponse {
                         id: request.id,
                         ..response
                     }))
                 }
-                Err(e) => Ok(Json(JsonRpcResponse::error(
-                    request.id,
-                    -32602,
-                    e.to_string(),
-                ))),
+                Err(e) => {
+                    warn!(tool = %tool_name, error = %e, "tools/call failed");
+                    Ok(Json(JsonRpcResponse::error(
+                        request.id,
+                        -32602,
+                        e.to_string(),
+                    )))
+                }
             }
         }
         _ => {
@@ -253,8 +314,49 @@ async fn handle_mcp_request(
     }
 }
 
-/// SSE endpoint — streams server events/notifications.
-/// Placeholder for real-time notifications (tool changes, server status).
+/// Reload: re-read config from disk, start new servers, stop removed ones.
+async fn handle_reload(
+    State(state): State<Arc<GatewayState>>,
+) -> std::result::Result<Json<serde_json::Value>, StatusCode> {
+    // Re-read config from disk
+    let config = HarborConfig::load().map_err(|e| {
+        error!(error = %e, "Failed to reload config");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Update the gateway's config
+    *state.config.lock().await = config.clone();
+
+    // Reload servers
+    let (started, stopped) = state.bridge_manager.reload(&config).await.map_err(|e| {
+        error!(error = %e, "Failed to reload servers");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let tools = state.bridge_manager.list_tools().await;
+    let tool_count = tools.len();
+    info!(
+        started = started.len(),
+        stopped = stopped.len(),
+        total_tools = tool_count,
+        "Gateway reloaded"
+    );
+
+    // Notify SSE subscribers that tools changed
+    if !started.is_empty() || !stopped.is_empty() {
+        let _ = state
+            .events_tx
+            .send(GatewayEvent::ToolsChanged { tool_count });
+    }
+
+    Ok(Json(serde_json::json!({
+        "started": started,
+        "stopped": stopped,
+        "total_tools": tool_count,
+    })))
+}
+
+/// SSE endpoint — streams real-time gateway events (tools_changed, etc.).
 async fn handle_sse(
     State(state): State<Arc<GatewayState>>,
 ) -> Sse<impl futures::Stream<Item = std::result::Result<Event, std::convert::Infallible>>> {
@@ -267,8 +369,24 @@ async fn handle_sse(
         "servers": servers,
         "tool_count": tools.len(),
     });
-
     let initial_event = Event::default().event("status").data(initial.to_string());
 
-    Sse::new(stream::once(async move { Ok(initial_event) })).keep_alive(KeepAlive::default())
+    // Subscribe to broadcast channel for future events
+    let mut rx = state.events_tx.subscribe();
+
+    let event_stream = async_stream::stream! {
+        yield Ok(initial_event);
+        loop {
+            match rx.recv().await {
+                Ok(event) => {
+                    let data = serde_json::to_string(&event).unwrap_or_default();
+                    yield Ok(Event::default().event("tools_changed").data(data));
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(_) => break,
+            }
+        }
+    };
+
+    Sse::new(event_stream).keep_alive(KeepAlive::default())
 }

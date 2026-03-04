@@ -33,6 +33,8 @@ impl BridgeManager {
     }
 
     /// Start a bridge for a server, initialize it, and cache its tools.
+    /// Tools are filtered according to the server's `tool_allowlist`, `tool_blocklist`,
+    /// and `tool_hosts` configuration.
     pub async fn start_server(
         &self,
         name: &str,
@@ -56,11 +58,20 @@ impl BridgeManager {
         if let Some(result) = &tools_response.result {
             if let Some(tools) = result.get("tools").and_then(|t| t.as_array()) {
                 let mut cache = self.tool_cache.lock().await;
+                let mut added = 0usize;
+                let total = tools.len();
+
                 for tool in tools {
                     let tool_name = tool
                         .get("name")
                         .and_then(|n| n.as_str())
                         .unwrap_or("unknown");
+
+                    // Apply global tool filters (host-specific filtering happens at query time)
+                    if !config.tool_allowed(tool_name, None) {
+                        continue;
+                    }
+
                     let description = tool
                         .get("description")
                         .and_then(|d| d.as_str())
@@ -73,8 +84,20 @@ impl BridgeManager {
                         input_schema,
                         server: name.to_string(),
                     });
+                    added += 1;
                 }
-                info!(server = name, tool_count = tools.len(), "Discovered tools");
+
+                if added < total {
+                    info!(
+                        server = name,
+                        discovered = total,
+                        exposed = added,
+                        filtered = total - added,
+                        "Discovered tools (filtered)"
+                    );
+                } else {
+                    info!(server = name, tool_count = total, "Discovered tools");
+                }
             }
         }
 
@@ -136,6 +159,17 @@ impl BridgeManager {
         self.tool_cache.lock().await.clone()
     }
 
+    /// Get tools filtered for a specific host.
+    /// Applies host-specific `tool_hosts` overrides from config.
+    pub async fn list_tools_for_host(&self, host: &str, config: &HarborConfig) -> Vec<ToolInfo> {
+        let cache = self.tool_cache.lock().await;
+        cache
+            .iter()
+            .filter(|tool| config.tool_allowed(&tool.server, &tool.name, Some(host)))
+            .cloned()
+            .collect()
+    }
+
     /// Call a tool, routing to the correct server bridge.
     pub async fn call_tool(
         &self,
@@ -180,6 +214,51 @@ impl BridgeManager {
             })?;
 
         bridge.send(request).await
+    }
+
+    /// Reload: re-read config, start new servers, stop removed/disabled ones.
+    /// Returns the names of servers that were started or stopped.
+    pub async fn reload(&self, config: &HarborConfig) -> Result<(Vec<String>, Vec<String>)> {
+        let running: Vec<String> = self.bridges.lock().await.keys().cloned().collect();
+        let desired: Vec<String> = config
+            .servers
+            .iter()
+            .filter(|(_, sc)| sc.enabled)
+            .map(|(name, _)| name.clone())
+            .collect();
+
+        // Stop servers no longer in config or disabled
+        let mut stopped = Vec::new();
+        for name in &running {
+            if !desired.contains(name) {
+                if let Err(e) = self.stop_server(name).await {
+                    warn!(server = %name, error = %e, "Failed to stop server during reload");
+                } else {
+                    info!(server = %name, "Server stopped during reload");
+                    stopped.push(name.clone());
+                }
+            }
+        }
+
+        // Start new servers not yet running
+        let mut started = Vec::new();
+        for name in &desired {
+            if !running.contains(name) {
+                let server_config = &config.servers[name];
+                let resolved_env = resolve_env(&server_config.env);
+                match self.start_server(name, server_config, &resolved_env).await {
+                    Ok(()) => {
+                        info!(server = %name, "Server started during reload");
+                        started.push(name.clone());
+                    }
+                    Err(e) => {
+                        warn!(server = %name, error = %e, "Failed to start server during reload")
+                    }
+                }
+            }
+        }
+
+        Ok((started, stopped))
     }
 
     /// Get names of all running servers.

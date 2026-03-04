@@ -1,18 +1,33 @@
-use harbor_core::connector::{self, resolve_env_for_host, HostServerEntry};
+use harbor_core::connector;
+use harbor_core::gateway::Gateway;
 use harbor_core::{HarborConfig, ServerConfig};
 use serde::Serialize;
 use std::collections::BTreeMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use tauri::Emitter;
 
+#[derive(Clone)]
 pub struct AppState {
-    config: Mutex<HarborConfig>,
+    config: Arc<Mutex<HarborConfig>>,
+    /// Holds the shutdown sender while the gateway is running.
+    /// `Some(tx)` = running, `None` = stopped.
+    /// Wrapped in Arc so the background task can clear it on exit.
+    gateway_shutdown: Arc<Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
 }
 
 impl AppState {
     pub fn new(config: HarborConfig) -> Self {
         Self {
-            config: Mutex::new(config),
+            config: Arc::new(Mutex::new(config)),
+            gateway_shutdown: Arc::new(Mutex::new(None)),
         }
+    }
+
+    pub fn gateway_running(&self) -> bool {
+        self.gateway_shutdown
+            .lock()
+            .map(|guard| guard.is_some())
+            .unwrap_or(false)
     }
 
     fn with_config_mut<T>(&self, f: impl FnOnce(&mut HarborConfig) -> T) -> Result<T, String> {
@@ -127,15 +142,22 @@ pub fn add_server(
             enabled: true,
             auto_start: false,
             hosts: BTreeMap::new(),
+            tool_allowlist: None,
+            tool_blocklist: None,
+            tool_hosts: BTreeMap::new(),
         };
         config.add_server(name, server).map_err(|e| e.to_string())
     })??;
+    let s = (*state).clone();
+    tauri::async_runtime::spawn(async move { auto_sync_and_reload(&s).await });
     Ok(())
 }
 
 #[tauri::command]
 pub fn remove_server(state: tauri::State<AppState>, name: String) -> Result<(), String> {
     state.with_config_mut(|config| config.remove_server(&name).map_err(|e| e.to_string()))??;
+    let s = (*state).clone();
+    tauri::async_runtime::spawn(async move { auto_sync_and_reload(&s).await });
     Ok(())
 }
 
@@ -153,6 +175,8 @@ pub fn toggle_server(
             Err(format!("Server '{name}' not found"))
         }
     })??;
+    let s = (*state).clone();
+    tauri::async_runtime::spawn(async move { auto_sync_and_reload(&s).await });
     Ok(())
 }
 
@@ -162,41 +186,11 @@ pub fn sync_host(state: tauri::State<AppState>, host: String) -> Result<String, 
         .config
         .lock()
         .map_err(|_| "Config lock poisoned — restart the application".to_string())?;
-    let conn = connector::get_connector(&host).map_err(|e| e.to_string())?;
 
-    let servers = config.servers_for_host(&host);
-    if servers.is_empty() {
-        return Ok(format!("No enabled servers for {}", conn.host_name()));
-    }
-
-    // Refresh Google Drive credential files if any gdrive server is present
-    for (_name, sc) in &servers {
-        if sc.args.iter().any(|a| a.contains("gdrive")) {
-            let _ = harbor_core::auth::oauth::write_gdrive_credentials();
-            break;
-        }
-    }
-
-    let entries: BTreeMap<String, HostServerEntry> = servers
-        .iter()
-        .map(|(name, sc)| {
-            let resolved_env = resolve_env_for_host(&sc.env);
-            (
-                (*name).clone(),
-                HostServerEntry {
-                    command: sc.command.clone(),
-                    args: sc.args.clone(),
-                    env: resolved_env,
-                },
-            )
-        })
-        .collect();
-
-    conn.write_servers(&entries).map_err(|e| e.to_string())?;
+    let result = harbor_core::sync::sync_to_host(&config, &host).map_err(|e| e.to_string())?;
     Ok(format!(
         "Synced {} server(s) to {}",
-        entries.len(),
-        conn.host_name()
+        result.server_count, result.display_name
     ))
 }
 
@@ -207,59 +201,22 @@ pub fn sync_all(state: tauri::State<AppState>) -> Result<String, String> {
         .lock()
         .map_err(|_| "Config lock poisoned — restart the application".to_string())?;
 
-    let connected_hosts: Vec<String> = config
-        .hosts
-        .iter()
-        .filter(|(_, h)| h.connected)
-        .map(|(name, _)| name.clone())
-        .collect();
-
-    if connected_hosts.is_empty() {
+    let results = harbor_core::sync::sync_all_hosts(&config);
+    if results.is_empty() {
         return Ok("No connected hosts. Connect a host first.".to_string());
     }
 
-    let mut results = Vec::new();
-    for host_name in &connected_hosts {
-        let conn = match connector::get_connector(host_name) {
-            Ok(c) => c,
-            Err(e) => {
-                results.push(format!("{}: error ({})", host_name, e));
-                continue;
+    let lines: Vec<String> = results
+        .into_iter()
+        .map(|(host_name, result)| match result {
+            Ok(r) => {
+                format!("{}: synced {} server(s)", r.display_name, r.server_count)
             }
-        };
+            Err(e) => format!("{}: error ({})", host_name, e),
+        })
+        .collect();
 
-        let servers = config.servers_for_host(host_name);
-        if servers.is_empty() {
-            results.push(format!("{}: skipped (no servers)", conn.host_name()));
-            continue;
-        }
-
-        let entries: BTreeMap<String, HostServerEntry> = servers
-            .iter()
-            .map(|(name, sc)| {
-                let resolved_env = resolve_env_for_host(&sc.env);
-                (
-                    (*name).clone(),
-                    HostServerEntry {
-                        command: sc.command.clone(),
-                        args: sc.args.clone(),
-                        env: resolved_env,
-                    },
-                )
-            })
-            .collect();
-
-        match conn.write_servers(&entries) {
-            Ok(()) => results.push(format!(
-                "{}: synced {} server(s)",
-                conn.host_name(),
-                entries.len()
-            )),
-            Err(e) => results.push(format!("{}: error ({})", conn.host_name(), e)),
-        }
-    }
-
-    Ok(results.join("\n"))
+    Ok(lines.join("\n"))
 }
 
 #[tauri::command]
@@ -271,9 +228,12 @@ pub fn connect_host(state: tauri::State<AppState>, host: String) -> Result<(), S
             .or_insert_with(|| harbor_core::HostConfig {
                 connected: false,
                 scope: None,
+                proxy_mode: false,
             });
         entry.connected = true;
     })?;
+    let s = (*state).clone();
+    tauri::async_runtime::spawn(async move { auto_sync_and_reload(&s).await });
     Ok(())
 }
 
@@ -547,6 +507,304 @@ pub fn gdrive_credential_paths() -> Result<(String, String), String> {
     harbor_core::auth::oauth::gdrive_credential_paths().ok_or_else(|| {
         "Google Drive credentials not found. Complete the Charter flow first.".into()
     })
+}
+
+// -- Tool discovery & filter commands --
+
+#[derive(Serialize)]
+pub struct DiscoveredTool {
+    name: String,
+    description: Option<String>,
+}
+
+/// Discover tools by temporarily spawning the MCP server, sending initialize + tools/list,
+/// then shutting it down. Works without the gateway running.
+#[tauri::command]
+pub async fn discover_tools(
+    state: tauri::State<'_, AppState>,
+    server: String,
+) -> Result<Vec<DiscoveredTool>, String> {
+    let server_config = {
+        let config = state
+            .config
+            .lock()
+            .map_err(|_| "Config lock poisoned — restart the application".to_string())?;
+        config
+            .get_server(&server)
+            .map_err(|e| e.to_string())?
+            .clone()
+    };
+
+    // Resolve env vars (vault: references → actual values)
+    let resolved_env = connector::resolve_env_for_host(&server_config.env);
+
+    // Spawn a temporary bridge to discover tools
+    let bridge =
+        harbor_core::gateway::stdio::StdioBridge::spawn(&server, &server_config, &resolved_env)
+            .await
+            .map_err(|e| format!("Failed to start server: {e}"))?;
+
+    // Initialize the MCP handshake
+    bridge
+        .initialize()
+        .await
+        .map_err(|e| format!("MCP initialize failed: {e}"))?;
+
+    // Query tools
+    let tools_response = bridge
+        .list_tools()
+        .await
+        .map_err(|e| format!("tools/list failed: {e}"))?;
+
+    // Shut down the temporary process
+    let _ = bridge.shutdown().await;
+
+    // Parse the response
+    let tools = tools_response
+        .result
+        .as_ref()
+        .and_then(|r| r.get("tools"))
+        .and_then(|t| t.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    Ok(tools
+        .into_iter()
+        .filter_map(|t| {
+            let name = t.get("name")?.as_str()?.to_string();
+            let description = t
+                .get("description")
+                .and_then(|d| d.as_str())
+                .map(String::from);
+            Some(DiscoveredTool { name, description })
+        })
+        .collect())
+}
+
+#[derive(Serialize)]
+pub struct ToolFilterInfo {
+    tool_allowlist: Option<Vec<String>>,
+    tool_blocklist: Option<Vec<String>>,
+    tool_hosts: BTreeMap<String, Vec<String>>,
+}
+
+#[tauri::command]
+pub fn get_tool_filters(
+    state: tauri::State<AppState>,
+    server: String,
+) -> Result<ToolFilterInfo, String> {
+    let config = state
+        .config
+        .lock()
+        .map_err(|_| "Config lock poisoned — restart the application".to_string())?;
+    let sc = config.get_server(&server).map_err(|e| e.to_string())?;
+    Ok(ToolFilterInfo {
+        tool_allowlist: sc.tool_allowlist.clone(),
+        tool_blocklist: sc.tool_blocklist.clone(),
+        tool_hosts: sc.tool_hosts.clone(),
+    })
+}
+
+#[tauri::command]
+pub fn set_tool_allowlist(
+    state: tauri::State<AppState>,
+    server: String,
+    tools: Option<Vec<String>>,
+) -> Result<(), String> {
+    state.with_config_mut(|config| {
+        if let Some(sc) = config.servers.get_mut(&server) {
+            sc.tool_allowlist = tools;
+            Ok(())
+        } else {
+            Err(format!("Server '{server}' not found"))
+        }
+    })??;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_tool_blocklist(
+    state: tauri::State<AppState>,
+    server: String,
+    tools: Option<Vec<String>>,
+) -> Result<(), String> {
+    state.with_config_mut(|config| {
+        if let Some(sc) = config.servers.get_mut(&server) {
+            sc.tool_blocklist = tools;
+            Ok(())
+        } else {
+            Err(format!("Server '{server}' not found"))
+        }
+    })??;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_tool_host_override(
+    state: tauri::State<AppState>,
+    server: String,
+    host: String,
+    tools: Option<Vec<String>>,
+) -> Result<(), String> {
+    state.with_config_mut(|config| {
+        if let Some(sc) = config.servers.get_mut(&server) {
+            match tools {
+                Some(t) => {
+                    sc.tool_hosts.insert(host, t);
+                }
+                None => {
+                    sc.tool_hosts.remove(&host);
+                }
+            }
+            Ok(())
+        } else {
+            Err(format!("Server '{server}' not found"))
+        }
+    })??;
+    Ok(())
+}
+
+/// Sync all connected hosts and reload the gateway if running.
+async fn auto_sync_and_reload(state: &AppState) {
+    let config = match state.config.lock() {
+        Ok(c) => c.clone(),
+        Err(_) => return,
+    };
+    let results = harbor_core::sync::sync_all_hosts(&config);
+    for (host, result) in &results {
+        match result {
+            Ok(r) => tracing::info!(host = %host, servers = r.server_count, "Auto-synced"),
+            Err(e) => tracing::warn!(host = %host, error = %e, "Auto-sync failed"),
+        }
+    }
+    reload_gateway_if_running(state).await;
+}
+
+/// If the gateway is running, tell it to reload config (start new servers, stop removed ones).
+async fn reload_gateway_if_running(state: &AppState) {
+    if !state.gateway_running() {
+        return;
+    }
+    let port = state
+        .config
+        .lock()
+        .ok()
+        .map(|c| c.harbor.gateway_port)
+        .unwrap_or(3100);
+    let url = format!("http://127.0.0.1:{port}/reload");
+    let client = reqwest::Client::new();
+    match client.post(&url).send().await {
+        Ok(resp) => {
+            if let Ok(body) = resp.json::<serde_json::Value>().await {
+                tracing::info!(result = %body, "Gateway reloaded");
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "Failed to reload gateway"),
+    }
+}
+
+// -- Gateway commands --
+
+/// Inner implementation shared by the Tauri command and the tray menu handler.
+pub async fn start_gateway_inner(
+    app_handle: tauri::AppHandle,
+    state: &AppState,
+) -> Result<String, String> {
+    // Check if already running
+    {
+        let guard = state
+            .gateway_shutdown
+            .lock()
+            .map_err(|_| "Lock poisoned".to_string())?;
+        if guard.is_some() {
+            return Err("Lighthouse is already running".to_string());
+        }
+    }
+
+    let config = {
+        state
+            .config
+            .lock()
+            .map_err(|_| "Config lock poisoned".to_string())?
+            .clone()
+    };
+
+    let port = config.harbor.gateway_port;
+    let gateway = Gateway::new(config);
+
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+
+    let shutdown_ref = Arc::clone(&state.gateway_shutdown);
+    {
+        let mut guard = shutdown_ref
+            .lock()
+            .map_err(|_| "Lock poisoned".to_string())?;
+        *guard = Some(shutdown_tx);
+    }
+
+    let app_handle_bg = app_handle.clone();
+    tokio::spawn(async move {
+        if let Err(e) = gateway.run(shutdown_rx).await {
+            tracing::error!(error = %e, "Gateway exited with error");
+        }
+        // Clear the shutdown sender so status reflects reality
+        if let Ok(mut guard) = shutdown_ref.lock() {
+            *guard = None;
+        }
+        let _ = app_handle_bg.emit("gateway-status-changed", false);
+        tracing::info!("Gateway stopped");
+    });
+
+    let _ = app_handle.emit("gateway-status-changed", true);
+    Ok(format!("Lighthouse lit on port {}", port))
+}
+
+#[tauri::command]
+pub async fn start_gateway(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    start_gateway_inner(app_handle, &state).await
+}
+
+/// Inner implementation shared by the Tauri command and the tray menu handler.
+pub fn stop_gateway_inner(
+    app_handle: tauri::AppHandle,
+    state: &AppState,
+) -> Result<String, String> {
+    let tx = {
+        let mut guard = state
+            .gateway_shutdown
+            .lock()
+            .map_err(|_| "Lock poisoned".to_string())?;
+        guard.take()
+    };
+
+    match tx {
+        Some(tx) => {
+            let _ = tx.send(());
+            let _ = app_handle.emit("gateway-status-changed", false);
+            Ok("Lighthouse extinguished".to_string())
+        }
+        None => Err("Lighthouse is not running".to_string()),
+    }
+}
+
+#[tauri::command]
+pub fn stop_gateway(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<AppState>,
+) -> Result<String, String> {
+    stop_gateway_inner(app_handle, &state)
+}
+
+#[tauri::command]
+pub fn gateway_status(state: tauri::State<AppState>) -> Result<bool, String> {
+    let guard = state
+        .gateway_shutdown
+        .lock()
+        .map_err(|_| "Lock poisoned".to_string())?;
+    Ok(guard.is_some())
 }
 
 fn normalize_host_key(display_name: &str) -> String {

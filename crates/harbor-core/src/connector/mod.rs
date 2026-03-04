@@ -27,6 +27,9 @@ pub trait Connector {
     /// This should preserve any existing non-Harbor entries.
     fn write_servers(&self, servers: &BTreeMap<String, HostServerEntry>) -> Result<()>;
 
+    /// Remove specific server entries from the host's config by name.
+    fn remove_servers(&self, names: &[String]) -> Result<()>;
+
     /// Check if the host's config file exists
     fn config_exists(&self) -> bool {
         self.config_path().map(|p| p.exists()).unwrap_or(false)
@@ -101,6 +104,9 @@ mod tests {
             enabled: true,
             auto_start: false,
             hosts: BTreeMap::new(),
+            tool_allowlist: None,
+            tool_blocklist: None,
+            tool_hosts: BTreeMap::new(),
         };
 
         let entry = HostServerEntry::from(&config);
@@ -119,6 +125,9 @@ mod tests {
             enabled: true,
             auto_start: false,
             hosts: BTreeMap::new(),
+            tool_allowlist: None,
+            tool_blocklist: None,
+            tool_hosts: BTreeMap::new(),
         };
 
         let entry = HostServerEntry::from(&config);

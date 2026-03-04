@@ -20,6 +20,7 @@ dirs = { workspace = true }
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
 futures = "0.3"
+async-stream = "0.3"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 reqwest = { version = "0.12", features = ["json"] }
 sha2 = { workspace = true }
