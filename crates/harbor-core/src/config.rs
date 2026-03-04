@@ -124,11 +124,6 @@ pub struct HostConfig {
     /// Scope for hosts that support it (e.g., "user" or "project" for Claude Code)
     #[serde(default)]
     pub scope: Option<String>,
-
-    /// When true, sync writes a Harbor proxy entry instead of direct server entries.
-    /// The proxy routes through the Harbor gateway for runtime tool filtering.
-    #[serde(default)]
-    pub proxy_mode: bool,
 }
 
 impl HarborConfig {

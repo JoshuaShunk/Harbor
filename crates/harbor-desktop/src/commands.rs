@@ -228,7 +228,6 @@ pub fn connect_host(state: tauri::State<AppState>, host: String) -> Result<(), S
             .or_insert_with(|| harbor_core::HostConfig {
                 connected: false,
                 scope: None,
-                proxy_mode: false,
             });
         entry.connected = true;
     })?;
@@ -244,6 +243,10 @@ pub fn disconnect_host(state: tauri::State<AppState>, host: String) -> Result<()
             entry.connected = false;
         }
     })?;
+    // Remove the harbor-proxy entry from the host's config file
+    if let Ok(conn) = connector::get_connector(&host) {
+        let _ = conn.remove_servers(&["harbor-proxy".to_string()]);
+    }
     Ok(())
 }
 
@@ -619,6 +622,8 @@ pub fn set_tool_allowlist(
             Err(format!("Server '{server}' not found"))
         }
     })??;
+    let s = (*state).clone();
+    tauri::async_runtime::spawn(async move { auto_sync_and_reload(&s).await });
     Ok(())
 }
 
@@ -636,6 +641,8 @@ pub fn set_tool_blocklist(
             Err(format!("Server '{server}' not found"))
         }
     })??;
+    let s = (*state).clone();
+    tauri::async_runtime::spawn(async move { auto_sync_and_reload(&s).await });
     Ok(())
 }
 
@@ -661,6 +668,8 @@ pub fn set_tool_host_override(
             Err(format!("Server '{server}' not found"))
         }
     })??;
+    let s = (*state).clone();
+    tauri::async_runtime::spawn(async move { auto_sync_and_reload(&s).await });
     Ok(())
 }
 

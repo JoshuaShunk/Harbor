@@ -157,14 +157,14 @@ async fn list_tools(
     State(state): State<Arc<GatewayState>>,
     Query(query): Query<ToolsQuery>,
 ) -> Json<ToolsResponse> {
+    let config = state.config.lock().await;
     let mut tools = if let Some(ref host) = query.host {
-        let config = state.config.lock().await;
         state
             .bridge_manager
             .list_tools_for_host(host, &config)
             .await
     } else {
-        state.bridge_manager.list_tools().await
+        state.bridge_manager.list_tools_global(&config).await
     };
 
     if let Some(ref server) = query.server {
@@ -205,14 +205,14 @@ async fn handle_mcp_request(
                 .and_then(|h| h.as_str())
                 .map(String::from);
 
+            let config = state.config.lock().await;
             let tools = if let Some(ref host) = host {
-                let config = state.config.lock().await;
                 state
                     .bridge_manager
                     .list_tools_for_host(host, &config)
                     .await
             } else {
-                state.bridge_manager.list_tools().await
+                state.bridge_manager.list_tools_global(&config).await
             };
             let mcp_tools: Vec<serde_json::Value> = tools
                 .iter()

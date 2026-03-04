@@ -77,7 +77,6 @@ async fn link_host(host: &str) -> Result<(), HarborError> {
         .or_insert_with(|| HostConfig {
             connected: false,
             scope: None,
-            proxy_mode: false,
         });
     entry.connected = true;
     config.save()?;

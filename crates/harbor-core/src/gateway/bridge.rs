@@ -33,8 +33,8 @@ impl BridgeManager {
     }
 
     /// Start a bridge for a server, initialize it, and cache its tools.
-    /// Tools are filtered according to the server's `tool_allowlist`, `tool_blocklist`,
-    /// and `tool_hosts` configuration.
+    /// All discovered tools are cached; filtering is applied at query time
+    /// via `list_tools_for_host` to support host-specific `tool_hosts` overrides.
     pub async fn start_server(
         &self,
         name: &str,
@@ -53,24 +53,17 @@ impl BridgeManager {
         // Initialize the MCP handshake
         bridge.initialize().await?;
 
-        // Discover tools
+        // Discover and cache all tools (filtering applied at query time)
         let tools_response = bridge.list_tools().await?;
         if let Some(result) = &tools_response.result {
             if let Some(tools) = result.get("tools").and_then(|t| t.as_array()) {
                 let mut cache = self.tool_cache.lock().await;
-                let mut added = 0usize;
-                let total = tools.len();
 
                 for tool in tools {
                     let tool_name = tool
                         .get("name")
                         .and_then(|n| n.as_str())
                         .unwrap_or("unknown");
-
-                    // Apply global tool filters (host-specific filtering happens at query time)
-                    if !config.tool_allowed(tool_name, None) {
-                        continue;
-                    }
 
                     let description = tool
                         .get("description")
@@ -84,20 +77,9 @@ impl BridgeManager {
                         input_schema,
                         server: name.to_string(),
                     });
-                    added += 1;
                 }
 
-                if added < total {
-                    info!(
-                        server = name,
-                        discovered = total,
-                        exposed = added,
-                        filtered = total - added,
-                        "Discovered tools (filtered)"
-                    );
-                } else {
-                    info!(server = name, tool_count = total, "Discovered tools");
-                }
+                info!(server = name, tool_count = tools.len(), "Discovered tools");
             }
         }
 
@@ -154,9 +136,19 @@ impl BridgeManager {
         Ok(())
     }
 
-    /// Get the full tool directory.
+    /// Get all discovered tools (unfiltered cache).
     pub async fn list_tools(&self) -> Vec<ToolInfo> {
         self.tool_cache.lock().await.clone()
+    }
+
+    /// Get tools filtered by global allowlist/blocklist (no host-specific overrides).
+    pub async fn list_tools_global(&self, config: &HarborConfig) -> Vec<ToolInfo> {
+        let cache = self.tool_cache.lock().await;
+        cache
+            .iter()
+            .filter(|tool| config.tool_allowed(&tool.server, &tool.name, None))
+            .cloned()
+            .collect()
     }
 
     /// Get tools filtered for a specific host.
