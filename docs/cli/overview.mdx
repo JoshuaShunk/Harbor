@@ -8,13 +8,24 @@ The Harbor CLI gives you full control over your MCP server fleet from the termin
 
 ## Installation
 
-```sh
-curl -fsSL https://harbormcp.ai/install.sh | sh
-```
+<Tabs>
+  <Tab title="macOS / Linux">
+    ```sh
+    curl -fsSL https://harbormcp.ai/install.sh | sh
+    ```
+  </Tab>
+  <Tab title="Windows">
+    ```powershell
+    irm https://harbormcp.ai/install.ps1 | iex
+    ```
+  </Tab>
+</Tabs>
 
 On **macOS**, the install script installs the desktop app (which includes the CLI) and symlinks `harbor` to your PATH. Use `HARBOR_NO_APP=1` for a CLI-only install.
 
 On **Linux**, it installs the `harbor` CLI binary directly.
+
+On **Windows**, the PowerShell script downloads and runs the MSI installer silently.
 
 You can also build from source:
 

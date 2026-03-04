@@ -7,12 +7,22 @@ description: "Install Harbor with a single command, or download the desktop app.
 
 The fastest way to install Harbor:
 
-```sh
-curl -fsSL https://harbormcp.ai/install.sh | sh
-```
+<Tabs>
+  <Tab title="macOS / Linux">
+    ```sh
+    curl -fsSL https://harbormcp.ai/install.sh | sh
+    ```
+  </Tab>
+  <Tab title="Windows">
+    ```powershell
+    irm https://harbormcp.ai/install.ps1 | iex
+    ```
+  </Tab>
+</Tabs>
 
 On **macOS**, this installs the desktop app to `/Applications` and adds the `harbor` CLI to your PATH.
 On **Linux**, this installs the `harbor` CLI binary.
+On **Windows**, this downloads and runs the MSI installer silently.
 
 ### Options
 
@@ -64,9 +74,18 @@ harbor scuttle
 
 Or via the install script:
 
-```sh
-curl -fsSL https://harbormcp.ai/install.sh | sh -s -- --uninstall
-```
+<Tabs>
+  <Tab title="macOS / Linux">
+    ```sh
+    curl -fsSL https://harbormcp.ai/install.sh | sh -s -- --uninstall
+    ```
+  </Tab>
+  <Tab title="Windows">
+    ```powershell
+    $env:HARBOR_UNINSTALL=1; irm https://harbormcp.ai/install.ps1 | iex
+    ```
+  </Tab>
+</Tabs>
 
 Use `harbor scuttle --purge` to also remove config files and vault secrets.
 

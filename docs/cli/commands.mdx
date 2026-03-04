@@ -160,6 +160,15 @@ harbor scuttle [--purge] [--dry-run] [--yes]
 
 You can also uninstall via the install script:
 
-```sh
-curl -fsSL https://harbormcp.ai/install.sh | sh -s -- --uninstall
-```
+<Tabs>
+  <Tab title="macOS / Linux">
+    ```sh
+    curl -fsSL https://harbormcp.ai/install.sh | sh -s -- --uninstall
+    ```
+  </Tab>
+  <Tab title="Windows">
+    ```powershell
+    $env:HARBOR_UNINSTALL=1; irm https://harbormcp.ai/install.ps1 | iex
+    ```
+  </Tab>
+</Tabs>
