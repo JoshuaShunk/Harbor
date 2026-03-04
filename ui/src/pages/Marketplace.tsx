@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { Search, ExternalLink, BadgeCheck, Package, Anchor, ChevronDown, Lock } from "lucide-react";
-import { marketplaceSearch, oauthGetStatus, addServer, getGdriveCredentialPaths, type MarketplaceServer, type OAuthProviderInfo } from "../lib/tauri";
+import { useEffect, useState, useCallback } from "react";
+import { Search, ExternalLink, BadgeCheck, Package, Anchor, ChevronDown, Lock, Check, Ship, Key } from "lucide-react";
+import { marketplaceSearch, oauthGetStatus, addServer, getGdriveCredentialPaths, catalogList, dockNative, getStatus, vaultSet, type MarketplaceServer, type OAuthProviderInfo, type NativeServerInfo } from "../lib/tauri";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
 import OAuthCharterModal from "../components/OAuthCharterModal";
@@ -114,15 +114,234 @@ function Marketplace() {
           )}
         </div>
       ) : !loading && (
-        <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
-          <div className="w-12 h-12 rounded-xl bg-bg-element border border-border-subtle flex items-center justify-center mb-4">
-            <Package className="w-6 h-6 text-text-muted" />
-          </div>
-          <p className="text-sm font-medium text-text-primary mb-1">Scout the Registry</p>
-          <p className="text-[13px] text-text-secondary max-w-xs text-center">
-            Spot new MCP ships by name, category, or description.
-          </p>
+        <NativeFleet />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Native Fleet — curated one-click servers
+// ---------------------------------------------------------------------------
+
+function NativeFleet() {
+  const [natives, setNatives] = useState<NativeServerInfo[]>([]);
+  const [dockedNames, setDockedNames] = useState<Set<string>>(new Set());
+  const [docking, setDocking] = useState<string | null>(null);
+  const [charterFor, setCharterFor] = useState<{ id: string; providerId: string } | null>(null);
+  const [charterOAuth, setCharterOAuth] = useState<OAuthProviderInfo | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // Manual-token key input state: maps server id → current input value
+  const [keyInput, setKeyInput] = useState<Record<string, string>>({});
+  const [expandedManual, setExpandedManual] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    const [catalog, status] = await Promise.all([catalogList(), getStatus()]);
+    setNatives(catalog);
+    setDockedNames(new Set(status.servers.map((s) => s.name)));
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const handleDock = async (native: NativeServerInfo) => {
+    // If OAuth needed and not yet authorized, open charter modal
+    if (native.auth_kind.startsWith("oauth:") && !native.has_auth) {
+      const providerId = native.auth_kind.replace("oauth:", "");
+      const status = await oauthGetStatus(providerId);
+      setCharterOAuth(status);
+      setCharterFor({ id: native.id, providerId });
+      return;
+    }
+    // If manual token needed and not yet stored, expand the key input
+    if (native.auth_kind === "manual" && !native.has_auth) {
+      setExpandedManual(native.id);
+      return;
+    }
+    setDocking(native.id);
+    setError(null);
+    try {
+      await dockNative(native.id);
+      await reload();
+    } catch (e) {
+      setError(String(e));
+      setTimeout(() => setError(null), 4000);
+    } finally {
+      setDocking(null);
+    }
+  };
+
+  const handleManualKeySubmit = async (native: NativeServerInfo) => {
+    const value = keyInput[native.id]?.trim();
+    if (!value) return;
+    setDocking(native.id);
+    setError(null);
+    try {
+      // Store the key in the vault, then dock
+      const vaultKey = native.manual_vault_key;
+      if (!vaultKey) return;
+      await vaultSet(vaultKey, value);
+      await dockNative(native.id);
+      setExpandedManual(null);
+      setKeyInput((prev) => ({ ...prev, [native.id]: "" }));
+      await reload();
+    } catch (e) {
+      setError(String(e));
+      setTimeout(() => setError(null), 4000);
+    } finally {
+      setDocking(null);
+    }
+  };
+
+  const handleCharterComplete = async () => {
+    if (!charterFor) return;
+    setCharterFor(null);
+    setCharterOAuth(null);
+    // Re-check auth status then dock
+    setDocking(charterFor.id);
+    try {
+      await dockNative(charterFor.id);
+      await reload();
+    } catch (e) {
+      setError(String(e));
+      setTimeout(() => setError(null), 4000);
+    } finally {
+      setDocking(null);
+    }
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <div className="flex items-center gap-2 mb-4">
+        <Ship className="w-4 h-4 text-text-muted" />
+        <h2 className="text-[13px] font-semibold text-text-primary">Native Fleet</h2>
+        <span className="text-[11px] text-text-muted">One-click install with built-in auth</span>
+      </div>
+
+      {error && (
+        <div className="mb-3 px-3 py-2 rounded-md text-[13px] bg-red-muted text-red border border-red/20 animate-fade-in">
+          {error}
         </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2 mb-8">
+        {natives.map((n) => {
+          const isDocked = dockedNames.has(n.id);
+          const isDocking = docking === n.id;
+          const isOAuth = n.auth_kind.startsWith("oauth:");
+          const isManual = n.auth_kind === "manual";
+          const needsOAuth = isOAuth && !n.has_auth;
+          const needsManual = isManual && !n.has_auth;
+          const isExpanded = expandedManual === n.id;
+
+          return (
+            <div
+              key={n.id}
+              className={`p-3 rounded-lg border transition-colors duration-150 ${
+                isDocked
+                  ? "bg-bg-element border-green/20"
+                  : "bg-bg-element border-border-subtle hover:border-border-default"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[13px] font-medium text-text-primary">{n.display_name}</span>
+                    {isOAuth && (
+                      <StatusBadge status={n.has_auth ? "chartered" : "unchartered"} />
+                    )}
+                    {isManual && (
+                      <Lock className="w-3 h-3 text-text-muted" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-text-secondary mt-0.5 leading-relaxed">{n.description}</p>
+                </div>
+                <div className="shrink-0">
+                  {isDocked ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-green bg-green-muted">
+                      <Check className="w-3 h-3" />
+                      Docked
+                    </span>
+                  ) : isDocking ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-text-muted bg-bg-active">
+                      Docking...
+                    </span>
+                  ) : needsOAuth ? (
+                    <button
+                      onClick={() => handleDock(n)}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border border-accent/40 text-accent hover:bg-accent-muted transition-colors duration-150"
+                    >
+                      <Anchor className="w-3 h-3" />
+                      Charter
+                    </button>
+                  ) : needsManual ? (
+                    <button
+                      onClick={() => handleDock(n)}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border border-accent/40 text-accent hover:bg-accent-muted transition-colors duration-150"
+                    >
+                      <Key className="w-3 h-3" />
+                      Add Key
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleDock(n)}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors duration-150"
+                    >
+                      <Anchor className="w-3 h-3" />
+                      Dock
+                    </button>
+                  )}
+                </div>
+              </div>
+              {/* Inline API key input for manual-token servers */}
+              {isExpanded && (
+                <div className="mt-2 pt-2 border-t border-border-subtle animate-fade-in">
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      placeholder="Paste your API key..."
+                      value={keyInput[n.id] ?? ""}
+                      onChange={(e) => setKeyInput((prev) => ({ ...prev, [n.id]: e.target.value }))}
+                      onKeyDown={(e) => e.key === "Enter" && handleManualKeySubmit(n)}
+                      className="flex-1 px-2.5 py-1.5 rounded-md text-[12px] font-mono bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors duration-150"
+                    />
+                    <button
+                      onClick={() => handleManualKeySubmit(n)}
+                      disabled={!keyInput[n.id]?.trim()}
+                      className="px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                    >
+                      Save & Dock
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-text-muted mt-1">
+                    Stored securely in your OS keychain
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Divider before search area */}
+      <div className="flex items-center gap-3 mb-2">
+        <div className="flex-1 h-px bg-border-subtle" />
+        <span className="text-[11px] text-text-muted">or search the registry</span>
+        <div className="flex-1 h-px bg-border-subtle" />
+      </div>
+
+      {/* Charter modal */}
+      {charterFor && charterOAuth && (
+        <OAuthCharterModal
+          provider={charterOAuth}
+          serverName={charterFor.id}
+          serverRegistryName={charterFor.id}
+          onComplete={handleCharterComplete}
+          onClose={() => {
+            setCharterFor(null);
+            setCharterOAuth(null);
+            reload();
+          }}
+        />
       )}
     </div>
   );

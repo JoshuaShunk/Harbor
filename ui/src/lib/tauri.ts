@@ -227,3 +227,22 @@ export async function oauthSetCustomCredentials(
 export async function getGdriveCredentialPaths(): Promise<[string, string]> {
   return invoke<[string, string]>("gdrive_credential_paths");
 }
+
+// --- Native Catalog ---
+
+export interface NativeServerInfo {
+  id: string;
+  display_name: string;
+  description: string;
+  auth_kind: string;
+  has_auth: boolean;
+  manual_vault_key: string | null;
+}
+
+export async function catalogList(): Promise<NativeServerInfo[]> {
+  return invoke<NativeServerInfo[]>("catalog_list");
+}
+
+export async function dockNative(id: string, name?: string): Promise<void> {
+  return invoke("dock_native", { id, name: name ?? null });
+}

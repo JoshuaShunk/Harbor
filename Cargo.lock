@@ -1679,12 +1679,13 @@ dependencies = [
 
 [[package]]
 name = "harbor-cli"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "clap",
  "colored",
  "futures-util",
  "harbor-core",
+ "open",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -1696,7 +1697,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "async-stream",
  "axum",
@@ -1722,7 +1723,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-desktop"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "chrono",
  "fix-path-env",

@@ -205,6 +205,8 @@ pub fn run() {
             commands::vault_delete,
             commands::vault_list,
             commands::marketplace_search,
+            commands::catalog_list,
+            commands::dock_native,
             commands::oauth_list_providers,
             commands::oauth_provider_for_server,
             commands::oauth_start_charter,

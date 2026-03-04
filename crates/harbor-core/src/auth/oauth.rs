@@ -515,6 +515,64 @@ pub fn clear_tokens(provider_id: &str) -> Result<()> {
 // OAuth flow orchestration
 // ---------------------------------------------------------------------------
 
+/// Complete an OAuth flow: exchange the authorization code for tokens, store
+/// client credentials and tokens in the vault. Shared between CLI and desktop.
+pub async fn complete_oauth_flow(
+    provider_id: &str,
+    code: &str,
+    callback_port: u16,
+    pkce: Option<&PkceChallenge>,
+) -> Result<OAuthTokens> {
+    let provider = builtin_providers()
+        .into_iter()
+        .find(|p| p.id == provider_id)
+        .ok_or_else(|| HarborError::OAuthError(format!("Unknown provider: {provider_id}")))?;
+
+    let custom_client_id = Vault::get(&format!("oauth:{provider_id}:client_id")).ok();
+    let custom_client_secret = Vault::get(&format!("oauth:{provider_id}:client_secret")).ok();
+
+    let effective_client_id = custom_client_id
+        .clone()
+        .or_else(|| provider.default_client_id.clone())
+        .ok_or_else(|| {
+            HarborError::OAuthError(format!(
+                "No client ID configured for {provider_id}. Set one via the vault."
+            ))
+        })?;
+    let effective_client_secret = custom_client_secret
+        .clone()
+        .or_else(|| provider.default_client_secret.clone());
+
+    let redirect = if provider.requires_https_redirect {
+        HTTPS_REDIRECT_BASE.to_string()
+    } else {
+        format!("http://127.0.0.1:{callback_port}/callback")
+    };
+
+    let tokens = exchange_code(
+        &provider,
+        code,
+        &redirect,
+        pkce.map(|p| p.code_verifier.as_str()),
+        custom_client_id.as_deref(),
+        custom_client_secret.as_deref(),
+    )
+    .await?;
+
+    // Store client credentials so credential files can reference them
+    let _ = Vault::set(
+        &format!("oauth:{provider_id}:client_id"),
+        &effective_client_id,
+    );
+    if let Some(ref secret) = effective_client_secret {
+        let _ = Vault::set(&format!("oauth:{provider_id}:client_secret"), secret);
+    }
+
+    store_tokens(provider_id, &tokens)?;
+
+    Ok(tokens)
+}
+
 pub async fn start_oauth_flow(
     provider_id: &str,
 ) -> Result<(String, OAuthCallbackServer, Option<PkceChallenge>)> {

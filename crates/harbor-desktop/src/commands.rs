@@ -414,53 +414,10 @@ pub async fn oauth_start_charter(
         .map_err(|_| "Charter timed out. The authorization window was open too long.".to_string())?
         .map_err(|_| "Charter cancelled.".to_string())?;
 
-    // Exchange code for tokens
-    let provider = oauth::builtin_providers()
-        .into_iter()
-        .find(|p| p.id == provider_id)
-        .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
-
-    let custom_client_id = harbor_core::Vault::get(&format!("oauth:{provider_id}:client_id")).ok();
-    let custom_client_secret =
-        harbor_core::Vault::get(&format!("oauth:{provider_id}:client_secret")).ok();
-
-    // Determine the actual client credentials used (custom or default)
-    let effective_client_id = custom_client_id
-        .clone()
-        .or_else(|| provider.default_client_id.clone())
-        .ok_or_else(|| {
-            format!("No client ID configured for {provider_id}. Set one via the vault.")
-        })?;
-    let effective_client_secret = custom_client_secret
-        .clone()
-        .or_else(|| provider.default_client_secret.clone());
-
-    let redirect = if provider.requires_https_redirect {
-        oauth::HTTPS_REDIRECT_BASE.to_string()
-    } else {
-        format!("http://127.0.0.1:{port}/callback")
-    };
-    let tokens = oauth::exchange_code(
-        &provider,
-        &code,
-        &redirect,
-        pkce.as_ref().map(|p| p.code_verifier.as_str()),
-        custom_client_id.as_deref(),
-        custom_client_secret.as_deref(),
-    )
-    .await
-    .map_err(|e| e.to_string())?;
-
-    // Store the effective client credentials in vault so credential files can reference them
-    let _ = harbor_core::Vault::set(
-        &format!("oauth:{provider_id}:client_id"),
-        &effective_client_id,
-    );
-    if let Some(ref secret) = effective_client_secret {
-        let _ = harbor_core::Vault::set(&format!("oauth:{provider_id}:client_secret"), secret);
-    }
-
-    oauth::store_tokens(&provider_id, &tokens).map_err(|e| e.to_string())?;
+    // Exchange code for tokens and store in vault (shared with CLI)
+    oauth::complete_oauth_flow(&provider_id, &code, port, pkce.as_ref())
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -510,6 +467,105 @@ pub fn gdrive_credential_paths() -> Result<(String, String), String> {
     harbor_core::auth::oauth::gdrive_credential_paths().ok_or_else(|| {
         "Google Drive credentials not found. Complete the Charter flow first.".into()
     })
+}
+
+// -- Native catalog commands --
+
+#[derive(Serialize)]
+pub struct NativeServerInfo {
+    id: String,
+    display_name: String,
+    description: String,
+    auth_kind: String,
+    has_auth: bool,
+    /// For manual-token servers: the vault key to store the API key under.
+    manual_vault_key: Option<String>,
+}
+
+#[tauri::command]
+pub fn catalog_list() -> Vec<NativeServerInfo> {
+    harbor_core::catalog::catalog()
+        .into_iter()
+        .map(|s| {
+            let (auth_kind, manual_vault_key) = match &s.auth {
+                harbor_core::AuthKind::None => ("none".to_string(), None),
+                harbor_core::AuthKind::OAuth(p) => (format!("oauth:{p}"), None),
+                harbor_core::AuthKind::ManualToken { env_var, .. } => {
+                    ("manual".to_string(), Some(env_var.to_lowercase()))
+                }
+            };
+            let has_auth = harbor_core::catalog::has_auth(&s);
+            NativeServerInfo {
+                id: s.id.to_string(),
+                display_name: s.display_name.to_string(),
+                description: s.description.to_string(),
+                auth_kind,
+                has_auth,
+                manual_vault_key,
+            }
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn dock_native(
+    state: tauri::State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+    id: String,
+    name: Option<String>,
+) -> Result<(), String> {
+    let native =
+        harbor_core::catalog::lookup(&id).ok_or_else(|| format!("Unknown native server: {id}"))?;
+
+    let server_name = name.unwrap_or_else(|| native.id.to_string());
+
+    // Handle OAuth if needed
+    if let harbor_core::AuthKind::OAuth(ref provider_id) = native.auth {
+        if !harbor_core::catalog::has_auth(&native) {
+            oauth_start_charter(app_handle, provider_id.clone()).await?;
+        }
+    }
+
+    // Reject manual-token servers that are missing their key
+    if let harbor_core::AuthKind::ManualToken {
+        env_var,
+        description,
+    } = &native.auth
+    {
+        if !harbor_core::catalog::has_auth(&native) {
+            return Err(format!(
+                "{} requires {}.\nStore it with: harbor chest set {} <value>",
+                native.display_name,
+                description,
+                env_var.to_lowercase(),
+            ));
+        }
+    }
+
+    let env = harbor_core::catalog::build_env(&native).map_err(|e| e.to_string())?;
+
+    state.with_config_mut(|config| {
+        let server = ServerConfig {
+            source: Some(format!("native:{}", native.id)),
+            command: native.command.to_string(),
+            args: native.args.iter().map(|s| s.to_string()).collect(),
+            env,
+            enabled: true,
+            auto_start: false,
+            hosts: BTreeMap::new(),
+            tool_allowlist: None,
+            tool_blocklist: None,
+            tool_hosts: BTreeMap::new(),
+        };
+        config
+            .add_server(server_name, server)
+            .map_err(|e| e.to_string())
+    })??;
+
+    let s = (*state).clone();
+    tauri::async_runtime::spawn(async move { auto_sync_and_reload(&s).await });
+
+    Ok(())
 }
 
 // -- Tool discovery & filter commands --
