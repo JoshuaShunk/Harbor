@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, X, Trash2, Zap, Lock, Filter, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { Plus, X, Trash2, Zap, Lock, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
 import {
@@ -457,18 +457,17 @@ function Servers() {
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => setExpandedServer(expandedServer === s.name ? null : s.name)}
-                    className="p-1 rounded-md text-text-muted hover:text-accent hover:bg-accent-muted transition-colors duration-150"
-                    title="Tool filters"
-                  >
-                    <Filter className="w-3.5 h-3.5" />
-                  </button>
-                  <StatusBadge status={(s.running ? "running" : s.enabled ? "enabled" : "disabled") as Status} />
-                  <button
                     onClick={() => handleToggle(s.name, s.enabled)}
-                    className="px-2.5 py-1 rounded-md text-[12px] border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors duration-150"
+                    title={s.enabled ? "Enabled" : "Disabled"}
+                    className={`relative w-7 h-4 rounded-full shrink-0 transition-colors duration-300 ${
+                      s.enabled ? "bg-emerald-400" : "bg-text-muted/30"
+                    }`}
                   >
-                    {s.enabled ? "Moor" : "Rig"}
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform duration-300 ${
+                        s.enabled ? "translate-x-3" : "translate-x-0"
+                      }`}
+                    />
                   </button>
                   <button
                     onClick={() => handleRemove(s.name)}

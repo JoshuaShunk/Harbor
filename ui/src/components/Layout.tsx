@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { useUpdate } from "../contexts/UpdateContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { useLighthouse } from "../hooks/useLighthouse";
 
 interface NavItem {
   to: string;
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
 function Layout() {
   const { status, currentVersion, availableVersion, progress, downloadAndInstall } = useUpdate();
   const { resolved } = useTheme();
+  const { running: lighthouseRunning, toggling: lighthouseToggling, toggle: toggleLighthouse } = useLighthouse();
   const navigate = useNavigate();
 
   // Listen for native macOS menu events (settings navigation only — update check is handled in Rust)
@@ -59,6 +61,20 @@ function Layout() {
           <span className="text-sm font-semibold tracking-tight text-text-primary">
             Harbor
           </span>
+          <button
+            onClick={toggleLighthouse}
+            disabled={lighthouseToggling}
+            title={lighthouseRunning ? "Lighthouse is lit" : "Lighthouse is dark"}
+            className={`ml-auto relative w-7 h-4 rounded-full shrink-0 transition-colors duration-300 ${
+              lighthouseRunning ? "bg-emerald-400" : "bg-text-muted/30"
+            } ${lighthouseToggling ? "opacity-50" : ""}`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform duration-300 ${
+                lighthouseRunning ? "translate-x-3" : "translate-x-0"
+              }`}
+            />
+          </button>
         </div>
 
         {/* Nav links */}
