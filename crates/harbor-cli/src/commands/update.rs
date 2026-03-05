@@ -16,6 +16,25 @@ pub struct UpdateArgs {
 }
 
 pub async fn run(args: UpdateArgs) -> Result<(), HarborError> {
+    // Block self-update for managed installs (Homebrew, CI)
+    if let Some(manager) = updater::is_managed_install() {
+        if manager == "Homebrew" {
+            println!(
+                "{} Self-update is disabled for {} installs.",
+                "warn:".yellow().bold(),
+                manager
+            );
+            println!("  Run: {}", "brew upgrade harbor".yellow());
+        } else {
+            println!(
+                "{} Self-update is disabled in {} environments.",
+                "warn:".yellow().bold(),
+                manager
+            );
+        }
+        return Ok(());
+    }
+
     println!("{} Checking for updates...", "info:".blue().bold());
 
     let update = updater::check_for_update().await?;
@@ -68,12 +87,6 @@ pub async fn run(args: UpdateArgs) -> Result<(), HarborError> {
         }
     }
 
-    // Find current binary location
-    let binary_path = updater::which_harbor().ok_or_else(|| HarborError::ConnectorError {
-        host: "update".into(),
-        reason: "Could not locate the harbor binary in PATH. Install manually from GitHub.".into(),
-    })?;
-
     println!(
         "{} Downloading v{}...",
         "info:".blue().bold(),
@@ -84,7 +97,7 @@ pub async fn run(args: UpdateArgs) -> Result<(), HarborError> {
 
     println!("{} Checksum verified. Installing...", "ok:".green().bold());
 
-    match updater::extract_and_replace(&tarball_path, &binary_path) {
+    match updater::extract_and_replace(&tarball_path) {
         Ok(()) => {
             let _ = updater::clear_cache();
             println!(
@@ -97,11 +110,10 @@ pub async fn run(args: UpdateArgs) -> Result<(), HarborError> {
             let msg = e.to_string();
             if msg.to_lowercase().contains("permission denied") {
                 println!(
-                    "{} Permission denied writing to {}",
+                    "{} Permission denied. Try: {}",
                     "err:".red().bold(),
-                    binary_path.display()
+                    "sudo harbor update --yes".yellow()
                 );
-                println!("\n  Try: {}", "sudo harbor update --yes".yellow());
                 return Ok(());
             }
             return Err(e);

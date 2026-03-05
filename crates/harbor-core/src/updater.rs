@@ -222,8 +222,12 @@ pub async fn download_and_verify(update: &UpdateCheck) -> crate::Result<PathBuf>
     Ok(tarball_path)
 }
 
-/// Extract the binary from the tarball and replace the target binary.
-pub fn extract_and_replace(tarball_path: &Path, target_binary: &Path) -> crate::Result<()> {
+/// Extract the binary from the tarball and replace the running executable.
+///
+/// Uses the `self-replace` crate which handles the platform-specific details:
+/// on Unix it does an atomic rename over the running binary (safe because the
+/// kernel tracks open files by inode, not path).
+pub fn extract_and_replace(tarball_path: &Path) -> crate::Result<()> {
     let tmp_dir = tarball_path
         .parent()
         .expect("tarball should have a parent directory");
@@ -252,68 +256,39 @@ pub fn extract_and_replace(tarball_path: &Path, target_binary: &Path) -> crate::
         });
     }
 
-    // Make executable
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&extracted_binary, std::fs::Permissions::from_mode(0o755))?;
     }
 
-    // Resolve symlinks to get the real path
-    let target_binary = if target_binary.is_symlink() {
-        std::fs::canonicalize(target_binary)?
-    } else {
-        target_binary.to_path_buf()
-    };
-
-    // Move current binary out of the way first (macOS kills processes that
-    // overwrite their own running binary, but allows renaming it).
-    let backup_path = target_binary.with_extension("bak");
-    if target_binary.exists() {
-        std::fs::rename(&target_binary, &backup_path).map_err(|e| HarborError::ConnectorError {
-            host: "update".into(),
-            reason: format!("Failed to move current binary aside: {e}"),
-        })?;
-    }
-
-    // Place new binary at the original path
-    match std::fs::rename(&extracted_binary, &target_binary) {
-        Ok(()) => {}
-        Err(_) => {
-            // Cross-device: fall back to copy (safe now since original is moved)
-            std::fs::copy(&extracted_binary, &target_binary).map_err(|e| {
-                // Restore backup on failure
-                let _ = std::fs::rename(&backup_path, &target_binary);
-                HarborError::Io(e)
-            })?;
-            let _ = std::fs::remove_file(&extracted_binary);
-        }
-    }
+    self_replace::self_replace(&extracted_binary).map_err(|e| HarborError::ConnectorError {
+        host: "update".into(),
+        reason: format!("Failed to replace binary: {e}"),
+    })?;
 
     // Clean up
-    let _ = std::fs::remove_file(&backup_path);
+    let _ = std::fs::remove_file(&extracted_binary);
     let _ = std::fs::remove_file(tarball_path);
 
     Ok(())
 }
 
-// --- Binary location ---
+// --- Install detection ---
 
-/// Find the harbor binary in PATH.
-pub fn which_harbor() -> Option<PathBuf> {
-    std::process::Command::new("which")
-        .arg("harbor")
-        .output()
-        .ok()
-        .and_then(|out| {
-            if out.status.success() {
-                String::from_utf8(out.stdout)
-                    .ok()
-                    .map(|s| PathBuf::from(s.trim()))
-            } else {
-                None
-            }
-        })
+/// Check if Harbor was installed via a package manager (Homebrew, etc.).
+/// Self-update should be disabled in these cases to avoid conflicts.
+pub fn is_managed_install() -> Option<&'static str> {
+    if let Ok(exe) = std::env::current_exe() {
+        let path = exe.to_string_lossy();
+        if path.contains("/Cellar/") || path.contains("/homebrew/") {
+            return Some("Homebrew");
+        }
+    }
+    if std::env::var_os("CI").is_some() {
+        return Some("CI");
+    }
+    None
 }
 
 // --- Cache ---
