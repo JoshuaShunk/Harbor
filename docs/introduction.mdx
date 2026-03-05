@@ -12,7 +12,7 @@ Harbor is a desktop app and CLI that manages [MCP (Model Context Protocol)](http
 
 ## Why Harbor?
 
-Every AI-powered development tool — Claude Code, Codex, VS Code, Cursor — has its own config file format for MCP servers. Adding a new server means editing multiple files, copying API keys around, and hoping nothing breaks.
+Every AI-powered development tool — Claude Code, Claude Desktop, Codex, VS Code, Cursor — has its own config file format for MCP servers. Adding a new server means editing multiple files, copying API keys around, and hoping nothing breaks.
 
 Harbor fixes this. You configure your servers once, and Harbor handles the rest.
 
@@ -20,16 +20,28 @@ Harbor fixes this. You configure your servers once, and Harbor handles the rest.
 
 <CardGroup cols={2}>
   <Card title="One Config, Every Host" icon="arrows-rotate">
-    Sync to Claude Code, Codex, VS Code, and Cursor simultaneously from a single source of truth.
+    Sync to Claude Code, Claude Desktop, Codex, VS Code, and Cursor simultaneously from a single source of truth.
+  </Card>
+  <Card title="Native Fleet" icon="ship">
+    Dock curated servers like GitHub, Slack, Atlassian, Linear, and more with a single command. Built-in OAuth and API key management.
   </Card>
   <Card title="Marketplace" icon="store">
     Search and install MCP servers from the [MCP Registry](https://registry.modelcontextprotocol.io) without leaving the app.
   </Card>
+  <Card title="OAuth Authentication" icon="key">
+    Built-in OAuth flows for 12+ providers — Slack, Atlassian, Linear, Notion, Sentry, Figma, Stripe, Vercel, Supabase, Cloudflare, Neon, and Google.
+  </Card>
   <Card title="Secret Vault" icon="lock">
     Store API keys in your OS keychain and reference them as `vault:SECRET_NAME`. Your secrets never end up in plain-text config files.
   </Card>
+  <Card title="Remote Servers" icon="globe">
+    Connect to remote HTTP MCP servers (like GitHub, Slack, Atlassian) alongside local stdio servers. Auth tokens are injected automatically.
+  </Card>
   <Card title="HTTP/SSE Gateway" icon="tower-broadcast">
-    Expose your MCP servers over HTTP for remote access and tool discovery.
+    Expose your MCP servers over HTTP with bearer token authentication for secure remote access and tool discovery.
+  </Card>
+  <Card title="Tool Filtering" icon="filter">
+    Control which tools each server exposes with allowlists, blocklists, and per-host overrides.
   </Card>
   <Card title="Desktop + CLI" icon="display">
     Full GUI built with Tauri, or use the CLI for automation and scripting.

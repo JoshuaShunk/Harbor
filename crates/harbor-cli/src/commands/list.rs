@@ -56,7 +56,11 @@ pub async fn run(args: ListArgs) -> Result<(), HarborError> {
         };
 
         println!("  {} [{}]", name.cyan().bold(), status);
-        println!("    command: {} {}", server.command, server.args.join(" "));
+        if let Some(ref url) = server.url {
+            println!("    url:     {}", url);
+        } else if let Some(ref cmd) = server.command {
+            println!("    command: {} {}", cmd, server.args.join(" "));
+        }
 
         if !server.env.is_empty() {
             let keys: Vec<&String> = server.env.keys().collect();

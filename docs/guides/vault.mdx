@@ -9,8 +9,8 @@ Many MCP servers require API keys or tokens. Instead of storing these as plain t
 ## How It Works
 
 1. You store a secret in Harbor's vault (backed by your OS keychain)
-2. You reference it in a server's environment variables as `vault:SECRET_NAME`
-3. When Harbor syncs to a host, it resolves the reference and injects the actual value
+2. You reference it in a server's environment variables or headers as `vault:SECRET_NAME`
+3. When Harbor syncs to a host or the gateway resolves secrets at runtime, the actual value is injected
 
 <Note>
 Your secrets are stored in the OS keychain (macOS Keychain, Windows Credential Manager, or Linux Secret Service). They never appear in plain-text config files.
@@ -44,26 +44,61 @@ harbor chest delete GITHUB_TOKEN
 
 ## Using Vault References
 
-When adding a server, reference your stored secrets in environment variables:
+### In environment variables
+
+Reference stored secrets in env vars with the `vault:` prefix:
 
 ```sh
-harbor dock --name github --command npx \
+harbor dock --name my-server --command npx \
   --args @modelcontextprotocol/server-github \
   --env GITHUB_TOKEN=vault:GITHUB_TOKEN
 ```
 
-In your `~/.harbor/config.toml`, this looks like:
+In `~/.harbor/config.toml`:
 
 ```toml
-[servers.github]
-command = "npx"
-args = ["-y", "@modelcontextprotocol/server-github"]
-
-[servers.github.env]
+[servers.my-server.env]
 GITHUB_TOKEN = "vault:GITHUB_TOKEN"
 ```
 
-When you run `harbor signal`, Harbor resolves `vault:GITHUB_TOKEN` to the actual value from your keychain before writing to host configs.
+### In HTTP headers
+
+Remote servers can use vault references in headers:
+
+```toml
+[servers.github.headers]
+Authorization = "Bearer vault:github_personal_access_token"
+```
+
+Harbor resolves the embedded `vault:` reference within the string, replacing `vault:github_personal_access_token` with the actual value while preserving the `Bearer ` prefix.
+
+### In gateway configuration
+
+The gateway token can also be a vault reference:
+
+```toml
+[harbor]
+gateway_token = "vault:gateway_token"
+```
+
+## OAuth Tokens
+
+When you authorize an OAuth provider (e.g., `harbor dock slack`), Harbor automatically stores the tokens in the vault with keys like:
+
+- `oauth:<provider>:access_token`
+- `oauth:<provider>:refresh_token`
+- `oauth:<provider>:client_id`
+- `oauth:<provider>:client_secret`
+
+Native servers reference these automatically. For example, after chartering Slack:
+
+```toml
+[servers.slack.env]
+SLACK_BOT_TOKEN = "vault:oauth:slack:access_token"
+SLACK_TEAM_ID = "vault:oauth:slack:team_id"
+```
+
+You don't need to manage these manually — Harbor handles them during the OAuth flow.
 
 ## Desktop App
 

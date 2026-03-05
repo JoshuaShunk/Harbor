@@ -4,19 +4,26 @@ sidebarTitle: "Gateway"
 description: "Expose your MCP servers over HTTP for remote access and tool discovery."
 ---
 
-Harbor's gateway (called the **Lighthouse**) exposes your MCP servers over HTTP, enabling remote access and tool discovery.
+Harbor's gateway (called the **Lighthouse**) exposes your MCP servers over HTTP, enabling remote access and tool discovery. It bridges both local stdio servers and remote HTTP MCP servers.
 
 ## Starting the Gateway
 
 ### CLI
 
 ```sh
-harbor lighthouse --port 3100
+harbor lighthouse [--port 3100] [--host 127.0.0.1] [--expose] [--token <secret>]
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--port` | Port to listen on (default: `3100`) |
+| `--host` | IP to bind to (default: `127.0.0.1`) |
+| `--expose` | Shorthand for `--host 0.0.0.0` (expose to network) |
+| `--token` | Bearer token required for remote access |
 
 ### Desktop App
 
-Configure the gateway port in the **Helm** page under the **Lighthouse** section.
+Use the dedicated **Lighthouse** page in the sidebar to start/stop the gateway and configure settings.
 
 ## Endpoints
 
@@ -24,34 +31,80 @@ Once running, the gateway provides these endpoints:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | `GET` | Health check — returns `200` if the gateway is running |
+| `/health` | `GET` | Health check — returns `200` with version. No auth required. |
 | `/tools` | `GET` | List all available tools across your docked servers |
 | `/servers` | `GET` | List all running MCP servers |
 | `/mcp` | `POST` | JSON-RPC endpoint for MCP protocol messages |
+| `/reload` | `POST` | Re-read config from disk and hot-reload servers and auth token |
 | `/sse` | `GET` | Server-sent events stream for real-time updates |
 
-## Example
+### Query Parameters
+
+The `/tools` endpoint supports optional filters:
+
+| Parameter | Description |
+|-----------|-------------|
+| `?host=<name>` | Apply host-specific tool overrides (e.g., `?host=claude`) |
+| `?server=<name>` | Only return tools from a specific server |
+
+## Authentication
+
+The gateway uses bearer token authentication for remote access:
+
+- **Localhost connections** are always trusted — no token required
+- **Remote connections** require `Authorization: Bearer <token>` when `gateway_token` is configured
+- If no token is configured and the gateway is exposed to the network, a warning is logged
+
+### Configuring a token
+
+```toml
+[harbor]
+gateway_host = "0.0.0.0"
+gateway_token = "my-secret-token"
+```
+
+The token also supports vault references:
+
+```toml
+gateway_token = "vault:gateway_token"
+```
+
+## Examples
 
 ```sh
-# Check health
+# Check health (no auth needed)
 curl http://localhost:3100/health
 
 # List available tools
 curl http://localhost:3100/tools
 
+# List tools for a specific host
+curl http://localhost:3100/tools?host=claude
+
 # List running servers
 curl http://localhost:3100/servers
+
+# Call a tool via JSON-RPC
+curl -X POST http://localhost:3100/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_issues","arguments":{}}}'
+
+# Hot-reload config from disk
+curl -X POST http://localhost:3100/reload
+
+# Remote access with bearer token
+curl -H "Authorization: Bearer my-secret-token" http://my-server:3100/tools
 ```
 
 ## Configuration
 
-The default port is `3100`. Change it in the CLI with `--port` or in the config file:
-
 ```toml
 [harbor]
-gateway_port = 3100
+gateway_port = 3100          # Port to listen on
+gateway_host = "127.0.0.1"   # Bind address ("0.0.0.0" for network)
+gateway_token = "my-secret"  # Bearer token for remote access
 ```
 
 <Note>
-The gateway enables CORS by default, allowing cross-origin requests from web applications.
+The gateway enables CORS by default, allowing cross-origin requests from web applications. The HTTP server starts before initializing MCP servers, so the health endpoint is available immediately.
 </Note>

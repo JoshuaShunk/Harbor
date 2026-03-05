@@ -14,9 +14,17 @@ pub struct AddArgs {
     #[arg(short, long)]
     pub name: Option<String>,
 
-    /// Command to run (e.g., "npx", "node", "python")
+    /// Command to run (for stdio servers, e.g., "npx", "node", "python")
     #[arg(short, long)]
     pub command: Option<String>,
+
+    /// URL for remote HTTP MCP servers (mutually exclusive with --command)
+    #[arg(long)]
+    pub url: Option<String>,
+
+    /// Custom HTTP headers for remote servers (KEY:VALUE, can be repeated)
+    #[arg(long = "header", short = 'H', value_parser = parse_header)]
+    pub headers: Vec<(String, String)>,
 
     /// Cargo to pass to the command (comma-separated)
     #[arg(short, long, value_delimiter = ',')]
@@ -41,6 +49,13 @@ pub struct AddArgs {
     /// Extra arguments appended after native defaults (use -- to separate)
     #[arg(last = true)]
     pub extra_args: Vec<String>,
+}
+
+fn parse_header(s: &str) -> Result<(String, String), String> {
+    let pos = s
+        .find(':')
+        .ok_or_else(|| format!("Invalid header: no ':' found in '{s}'. Use KEY:VALUE format."))?;
+    Ok((s[..pos].trim().to_string(), s[pos + 1..].trim().to_string()))
 }
 
 fn parse_env_var(s: &str) -> Result<(String, String), String> {
@@ -128,21 +143,46 @@ async fn run_native(native: harbor_core::NativeServer, args: AddArgs) -> Result<
         env.insert(k, v);
     }
 
-    // Build final args: catalog defaults + any extra trailing args
-    let mut final_args: Vec<String> = native.args.iter().map(|s| s.to_string()).collect();
-    final_args.extend(args.extra_args);
+    let server = if native.is_remote() {
+        // Remote HTTP server — use url + headers, no command/args
+        let headers = harbor_core::catalog::build_headers(&native);
+        ServerConfig {
+            source: Some(format!("native:{}", native.id)),
+            command: None,
+            args: vec![],
+            env,
+            url: native.url.map(String::from),
+            headers: if headers.is_empty() {
+                None
+            } else {
+                Some(headers.into_iter().collect())
+            },
+            enabled: !args.disabled,
+            auto_start: args.auto_start,
+            hosts: BTreeMap::new(),
+            tool_allowlist: None,
+            tool_blocklist: None,
+            tool_hosts: BTreeMap::new(),
+        }
+    } else {
+        // Stdio server — use command + args
+        let mut final_args: Vec<String> = native.args.iter().map(|s| s.to_string()).collect();
+        final_args.extend(args.extra_args);
 
-    let server = ServerConfig {
-        source: Some(format!("native:{}", native.id)),
-        command: native.command.to_string(),
-        args: final_args,
-        env,
-        enabled: !args.disabled,
-        auto_start: args.auto_start,
-        hosts: BTreeMap::new(),
-        tool_allowlist: None,
-        tool_blocklist: None,
-        tool_hosts: BTreeMap::new(),
+        ServerConfig {
+            source: Some(format!("native:{}", native.id)),
+            command: native.command.map(String::from),
+            args: final_args,
+            env,
+            url: None,
+            headers: None,
+            enabled: !args.disabled,
+            auto_start: args.auto_start,
+            hosts: BTreeMap::new(),
+            tool_allowlist: None,
+            tool_blocklist: None,
+            tool_hosts: BTreeMap::new(),
+        }
     };
 
     config.add_server(server_name.clone(), server)?;
@@ -217,19 +257,35 @@ async fn run_custom(args: AddArgs) -> Result<(), HarborError> {
             ids.join(", "),
         ))
     })?;
-    let command = args
-        .command
-        .ok_or_else(|| HarborError::ConfigParse("Custom servers require --command".into()))?;
+
+    // Validate: exactly one of --command or --url
+    if args.command.is_some() && args.url.is_some() {
+        return Err(HarborError::ConfigParse(
+            "Cannot specify both --command and --url".to_string(),
+        ));
+    }
+    if args.command.is_none() && args.url.is_none() {
+        return Err(HarborError::ConfigParse(
+            "Custom servers require either --command or --url".to_string(),
+        ));
+    }
 
     let mut config = HarborConfig::load()?;
 
     let env: BTreeMap<String, String> = args.env.into_iter().collect();
+    let headers: Option<BTreeMap<String, String>> = if args.headers.is_empty() {
+        None
+    } else {
+        Some(args.headers.into_iter().collect())
+    };
 
     let server = ServerConfig {
         source: None,
-        command,
+        command: args.command,
         args: args.args,
         env,
+        url: args.url,
+        headers,
         enabled: !args.disabled,
         auto_start: args.auto_start,
         hosts: BTreeMap::new(),

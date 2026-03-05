@@ -1,0 +1,30 @@
+---
+title: "Lighthouse (Gateway)"
+sidebarTitle: "Lighthouse"
+description: "Start and monitor the HTTP/SSE gateway from the Lighthouse page."
+---
+
+The **Lighthouse** page is a dedicated control panel for Harbor's HTTP/SSE gateway. It lets you start, stop, and monitor the gateway that exposes your MCP servers over the network.
+
+## Controls
+
+| Control | Description |
+|---------|-------------|
+| **Start/Stop toggle** | Launch or shut down the gateway |
+| **Expose to network** | Toggle between localhost-only (`127.0.0.1`) and network-accessible (`0.0.0.0`) |
+| **Bearer token** | Set a token required for remote (non-localhost) access |
+| **Endpoint URL** | Shows the gateway URL — click to copy |
+
+## Signal Log
+
+The Lighthouse page includes a live log viewer that streams gateway activity in real-time:
+
+- Auto-scrolls to the latest entries
+- **Export** logs to a file
+- **Clear** the log
+
+## Security
+
+When exposed to the network (`0.0.0.0`), you should configure a bearer token for authentication. Localhost connections are always trusted — no token required. Remote connections without a valid `Authorization: Bearer <token>` header are rejected.
+
+See the [gateway guide](/guides/gateway) for endpoint details and configuration.

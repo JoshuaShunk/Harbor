@@ -18,41 +18,83 @@ Harbor stores its configuration at `~/.harbor/config.toml`. You can edit this fi
 
 ```toml
 [harbor]
-gateway_port = 3100  # HTTP/SSE gateway port
+gateway_port = 3100          # HTTP/SSE gateway port
+gateway_host = "127.0.0.1"   # Bind address (use "0.0.0.0" to expose to network)
+gateway_token = "my-secret"  # Bearer token for remote access (optional)
 ```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `gateway_port` | int | `3100` | Port the gateway listens on |
+| `gateway_host` | string | `"127.0.0.1"` | IP address to bind to. Use `"0.0.0.0"` to expose to the network. |
+| `gateway_token` | string | — | Bearer token required for non-localhost connections. Supports `vault:KEY` references. |
 
 ### Servers
 
-Each server is defined under `[servers.<name>]`:
+Each server is defined under `[servers.<name>]`. A server must have either `command` (stdio) or `url` (remote HTTP) — not both.
+
+#### Stdio server example
+
+```toml
+[servers.memory]
+source = "native:memory"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-memory"]
+enabled = true
+auto_start = false
+```
+
+#### Remote HTTP server example
 
 ```toml
 [servers.github]
-source = "npm:@mcp/server-github"  # Where the server came from (optional)
-command = "npx"                      # Executable to run
-args = ["-y", "@modelcontextprotocol/server-github"]  # Command arguments
-enabled = true                       # Whether the server is active
-auto_start = false                   # Start automatically with Harbor
+source = "native:github"
+url = "https://api.githubcopilot.com/mcp/"
+enabled = true
 
-[servers.github.env]
-GITHUB_TOKEN = "vault:GITHUB_TOKEN"  # Environment variables
-
-[servers.github.hosts]
-claude = true    # Per-host enable/disable overrides
-codex = true
-vscode = false
+[servers.github.headers]
+Authorization = "Bearer vault:github_personal_access_token"
 ```
 
 ### Server Fields
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `source` | string | — | How the server was sourced (e.g., `npm:@mcp/server-github`) |
-| `command` | string | **required** | Executable to run |
+| `source` | string | — | How the server was sourced (e.g., `native:github`, `registry:@mcp/server`) |
+| `command` | string | — | Executable to run (for stdio servers). Mutually exclusive with `url`. |
 | `args` | string[] | `[]` | Arguments passed to the command |
 | `env` | map | `{}` | Environment variables (supports `vault:KEY` references) |
+| `url` | string | — | URL for remote HTTP MCP servers. Mutually exclusive with `command`. |
+| `headers` | map | — | Custom HTTP headers for remote servers (supports `vault:KEY` references) |
 | `enabled` | bool | `true` | Whether the server is globally enabled |
 | `auto_start` | bool | `false` | Start this server automatically when Harbor launches |
 | `hosts` | map | `{}` | Per-host enable/disable overrides |
+| `tool_allowlist` | string[] | — | Only expose these tools (if set, all others are hidden) |
+| `tool_blocklist` | string[] | — | Hide these specific tools (applied after allowlist) |
+| `tool_hosts` | map | `{}` | Per-host tool allowlist overrides |
+
+<Note>
+Either `command` or `url` is required — you must set exactly one. Setting both (or neither) is an error.
+</Note>
+
+### Tool Filtering
+
+You can control which tools a server exposes using allowlists, blocklists, and per-host overrides:
+
+```toml
+[servers.github]
+url = "https://api.githubcopilot.com/mcp/"
+tool_allowlist = ["get_issues", "create_issue", "search_code"]
+tool_blocklist = ["delete_repo"]
+
+[servers.github.tool_hosts]
+claude = ["get_issues", "search_code"]  # Claude only sees these two tools
+```
+
+Resolution order:
+1. If a host-specific override exists in `tool_hosts`, only those tools are allowed for that host.
+2. Otherwise, apply global `tool_allowlist` (tool must be in it).
+3. Then apply global `tool_blocklist` (tool must NOT be in it).
 
 ### Hosts
 
@@ -60,11 +102,14 @@ Each host is defined under `[hosts.<name>]`:
 
 ```toml
 [hosts.claude]
-connected = true    # Whether this host is active
+connected = true
+
+[hosts.claude-desktop]
+connected = true
 
 [hosts.vscode]
 connected = true
-scope = "user"      # Scope for hosts that support it
+scope = "user"
 ```
 
 ### Host Fields
@@ -74,35 +119,51 @@ scope = "user"      # Scope for hosts that support it
 | `connected` | bool | `false` | Whether Harbor syncs to this host |
 | `scope` | string | — | Scope level (e.g., `user` or `project`) |
 
+Valid host names: `claude`, `claude-desktop`, `codex`, `vscode`, `cursor`
+
 ## Full Example
 
 ```toml
 [harbor]
 gateway_port = 3100
+gateway_host = "127.0.0.1"
 
-[servers.memory]
-command = "npx"
-args = ["-y", "@modelcontextprotocol/server-memory"]
-enabled = true
-auto_start = false
-
+# Native remote server (GitHub via HTTP)
 [servers.github]
-source = "npm:@mcp/server-github"
+source = "native:github"
+url = "https://api.githubcopilot.com/mcp/"
+enabled = true
+
+[servers.github.headers]
+Authorization = "Bearer vault:github_personal_access_token"
+
+# Native stdio server (Filesystem)
+[servers.filesystem]
+source = "native:filesystem"
 command = "npx"
-args = ["-y", "@modelcontextprotocol/server-github"]
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"]
 enabled = true
 auto_start = false
 
-[servers.github.env]
-GITHUB_TOKEN = "vault:GITHUB_TOKEN"
+# Custom server with tool filtering
+[servers.custom-api]
+command = "npx"
+args = ["-y", "my-mcp-server"]
+enabled = true
+tool_blocklist = ["dangerous_tool"]
 
-[servers.github.hosts]
+[servers.custom-api.env]
+API_KEY = "vault:my_api_key"
+
+[servers.custom-api.hosts]
 claude = true
 codex = true
-vscode = true
-cursor = false
+vscode = false
 
 [hosts.claude]
+connected = true
+
+[hosts.claude-desktop]
 connected = true
 
 [hosts.codex]

@@ -22,6 +22,29 @@ pub enum AuthKind {
 }
 
 // ---------------------------------------------------------------------------
+// Extra arguments hint for the UI
+// ---------------------------------------------------------------------------
+
+/// Describes additional arguments a native server accepts (appended after defaults).
+#[derive(Debug, Clone)]
+pub enum ExtraArgs {
+    /// No extra args needed.
+    None,
+    /// One or more directory paths (e.g. filesystem allowed dirs).
+    Directories { label: &'static str },
+    /// A single file path (e.g. sqlite database).
+    FilePath {
+        label: &'static str,
+        extensions: &'static [&'static str],
+    },
+    /// Free-form text (e.g. postgres connection string).
+    TextInput {
+        label: &'static str,
+        placeholder: &'static str,
+    },
+}
+
+// ---------------------------------------------------------------------------
 // Native server definition
 // ---------------------------------------------------------------------------
 
@@ -34,12 +57,25 @@ pub struct NativeServer {
     pub display_name: &'static str,
     /// Brief description
     pub description: &'static str,
-    /// Command to run (e.g. "npx", "uvx")
-    pub command: &'static str,
+    /// Command to run (e.g. "npx", "uvx") — `None` for remote servers
+    pub command: Option<&'static str>,
     /// Default arguments
     pub args: &'static [&'static str],
+    /// Remote HTTP endpoint — `None` for stdio servers
+    pub url: Option<&'static str>,
+    /// Default HTTP headers for remote servers (e.g. content-type)
+    pub default_headers: &'static [(&'static str, &'static str)],
     /// Authentication requirement
     pub auth: AuthKind,
+    /// Extra arguments the UI should prompt for
+    pub extra_args: ExtraArgs,
+}
+
+impl NativeServer {
+    /// Whether this is a remote HTTP server (as opposed to a local stdio server).
+    pub fn is_remote(&self) -> bool {
+        self.url.is_some()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -49,93 +85,198 @@ pub struct NativeServer {
 /// Returns the full catalog of native MCP servers.
 pub fn catalog() -> Vec<NativeServer> {
     vec![
-        // --- OAuth servers ---
+        // --- Remote servers (first-party vendor) ---
         NativeServer {
             id: "github",
             display_name: "GitHub",
             description: "GitHub API — repos, issues, PRs, code search",
-            command: "npx",
-            args: &["-y", "@modelcontextprotocol/server-github"],
-            auth: AuthKind::OAuth("github".into()),
+            command: None,
+            args: &[],
+            url: Some("https://api.githubcopilot.com/mcp/"),
+            default_headers: &[],
+            auth: AuthKind::ManualToken {
+                env_var: "GITHUB_PERSONAL_ACCESS_TOKEN",
+                description: "GitHub Personal Access Token (https://github.com/settings/tokens)",
+            },
+            extra_args: ExtraArgs::None,
         },
+        // --- OAuth servers ---
         NativeServer {
-            id: "google-drive",
-            display_name: "Google Drive",
-            description: "Read-only Google Drive — search and read files",
-            command: "npx",
-            args: &["-y", "@modelcontextprotocol/server-gdrive"],
-            auth: AuthKind::OAuth("google".into()),
+            id: "atlassian",
+            display_name: "Atlassian",
+            description: "Jira, Confluence & Compass — issues, pages, search",
+            command: None,
+            args: &[],
+            url: Some("https://mcp.atlassian.com/v1/mcp"),
+            default_headers: &[],
+            auth: AuthKind::OAuth("atlassian".into()),
+            extra_args: ExtraArgs::None,
         },
         NativeServer {
             id: "slack",
             display_name: "Slack",
             description: "Slack workspace — channels, messages, users",
-            command: "npx",
-            args: &["-y", "@modelcontextprotocol/server-slack"],
+            command: None,
+            args: &[],
+            url: Some("https://mcp.slack.com/mcp"),
+            default_headers: &[],
             auth: AuthKind::OAuth("slack".into()),
+            extra_args: ExtraArgs::None,
+        },
+        NativeServer {
+            id: "linear",
+            display_name: "Linear",
+            description: "Linear — issues, projects, cycles, comments",
+            command: None,
+            args: &[],
+            url: Some("https://mcp.linear.app/mcp"),
+            default_headers: &[],
+            auth: AuthKind::OAuth("linear".into()),
+            extra_args: ExtraArgs::None,
+        },
+        NativeServer {
+            id: "notion",
+            display_name: "Notion",
+            description: "Notion — pages, databases, docs, tasks",
+            command: None,
+            args: &[],
+            url: Some("https://mcp.notion.com/mcp"),
+            default_headers: &[],
+            auth: AuthKind::OAuth("notion".into()),
+            extra_args: ExtraArgs::None,
+        },
+        NativeServer {
+            id: "sentry",
+            display_name: "Sentry",
+            description: "Sentry — errors, issues, performance monitoring",
+            command: None,
+            args: &[],
+            url: Some("https://mcp.sentry.dev/mcp"),
+            default_headers: &[],
+            auth: AuthKind::OAuth("sentry".into()),
+            extra_args: ExtraArgs::None,
+        },
+        NativeServer {
+            id: "figma",
+            display_name: "Figma",
+            description: "Figma — design inspection, Dev Mode, components",
+            command: None,
+            args: &[],
+            url: Some("https://mcp.figma.com/mcp"),
+            default_headers: &[],
+            auth: AuthKind::OAuth("figma".into()),
+            extra_args: ExtraArgs::None,
+        },
+        NativeServer {
+            id: "stripe",
+            display_name: "Stripe",
+            description: "Stripe — payments, customers, subscriptions, webhooks",
+            command: None,
+            args: &[],
+            url: Some("https://mcp.stripe.com"),
+            default_headers: &[],
+            auth: AuthKind::OAuth("stripe".into()),
+            extra_args: ExtraArgs::None,
+        },
+        NativeServer {
+            id: "vercel",
+            display_name: "Vercel",
+            description: "Vercel — deployments, projects, domains, logs",
+            command: None,
+            args: &[],
+            url: Some("https://mcp.vercel.com"),
+            default_headers: &[],
+            auth: AuthKind::OAuth("vercel".into()),
+            extra_args: ExtraArgs::None,
+        },
+        NativeServer {
+            id: "supabase",
+            display_name: "Supabase",
+            description: "Supabase — database, auth, storage, edge functions",
+            command: None,
+            args: &[],
+            url: Some("https://mcp.supabase.com/mcp"),
+            default_headers: &[],
+            auth: AuthKind::OAuth("supabase".into()),
+            extra_args: ExtraArgs::None,
+        },
+        NativeServer {
+            id: "cloudflare",
+            display_name: "Cloudflare",
+            description: "Cloudflare — Workers, D1, R2, KV bindings",
+            command: None,
+            args: &[],
+            url: Some("https://bindings.mcp.cloudflare.com/mcp"),
+            default_headers: &[],
+            auth: AuthKind::OAuth("cloudflare".into()),
+            extra_args: ExtraArgs::None,
+        },
+        NativeServer {
+            id: "neon",
+            display_name: "Neon",
+            description: "Neon — serverless Postgres databases, branches, SQL",
+            command: None,
+            args: &[],
+            url: Some("https://mcp.neon.tech/mcp"),
+            default_headers: &[],
+            auth: AuthKind::OAuth("neon".into()),
+            extra_args: ExtraArgs::None,
         },
         // --- No-auth servers ---
         NativeServer {
             id: "filesystem",
             display_name: "Filesystem",
-            description: "Local filesystem — read and write files (pass paths after --)",
-            command: "npx",
+            description: "Local filesystem — read and write files",
+            command: Some("npx"),
             args: &["-y", "@modelcontextprotocol/server-filesystem"],
+            url: None,
+            default_headers: &[],
             auth: AuthKind::None,
+            extra_args: ExtraArgs::Directories {
+                label: "Allowed directories",
+            },
         },
         NativeServer {
-            id: "fetch",
-            display_name: "Fetch",
-            description: "HTTP fetch — retrieve and convert web pages to markdown",
-            command: "uvx",
-            args: &["mcp-server-fetch"],
-            auth: AuthKind::None,
-        },
-        NativeServer {
-            id: "memory",
-            display_name: "Memory",
-            description: "Persistent memory via a knowledge graph",
-            command: "npx",
-            args: &["-y", "@modelcontextprotocol/server-memory"],
-            auth: AuthKind::None,
-        },
-        NativeServer {
-            id: "puppeteer",
-            display_name: "Puppeteer",
+            id: "playwright",
+            display_name: "Playwright",
             description: "Browser automation — navigate, screenshot, interact with pages",
-            command: "npx",
-            args: &["-y", "@modelcontextprotocol/server-puppeteer"],
+            command: Some("npx"),
+            args: &["-y", "@playwright/mcp@latest"],
+            url: None,
+            default_headers: &[],
             auth: AuthKind::None,
+            extra_args: ExtraArgs::None,
         },
+        // --- Google Workspace (OAuth via Harbor, token passed to gws) ---
         NativeServer {
-            id: "sqlite",
-            display_name: "SQLite",
+            id: "google-workspace",
+            display_name: "Google Workspace",
             description:
-                "SQLite database — query and manage local databases (pass db path after --)",
-            command: "uvx",
-            args: &["mcp-server-sqlite"],
-            auth: AuthKind::None,
+                "Google Workspace — Drive, Gmail, Calendar, Sheets, Docs, Chat, and more",
+            command: Some("npx"),
+            args: &["-y", "@googleworkspace/cli", "mcp", "-s"],
+            url: None,
+            default_headers: &[],
+            auth: AuthKind::OAuth("google".into()),
+            extra_args: ExtraArgs::TextInput {
+                label: "Services",
+                placeholder: "drive,gmail,calendar,sheets (or 'all')",
+            },
         },
         // --- Manual-token servers ---
         NativeServer {
             id: "brave-search",
             display_name: "Brave Search",
             description: "Web and local search via the Brave Search API",
-            command: "npx",
-            args: &["-y", "@modelcontextprotocol/server-brave-search"],
+            command: Some("npx"),
+            args: &["-y", "@brave/brave-search-mcp-server"],
+            url: None,
+            default_headers: &[],
             auth: AuthKind::ManualToken {
                 env_var: "BRAVE_API_KEY",
                 description: "Brave Search API key (https://brave.com/search/api/)",
             },
-        },
-        NativeServer {
-            id: "postgres",
-            display_name: "PostgreSQL",
-            description:
-                "PostgreSQL database — read-only query access (pass connection string after --)",
-            command: "npx",
-            args: &["-y", "@modelcontextprotocol/server-postgres"],
-            auth: AuthKind::None,
+            extra_args: ExtraArgs::None,
         },
     ]
 }
@@ -150,15 +291,21 @@ pub fn all_ids() -> Vec<&'static str> {
     // Return from a static-like list to avoid re-allocating NativeServer each time
     vec![
         "github",
-        "google-drive",
+        "atlassian",
         "slack",
+        "linear",
+        "notion",
+        "sentry",
+        "figma",
+        "stripe",
+        "vercel",
+        "supabase",
+        "cloudflare",
+        "neon",
         "filesystem",
-        "fetch",
-        "memory",
-        "puppeteer",
-        "sqlite",
+        "playwright",
+        "google-workspace",
         "brave-search",
-        "postgres",
     ]
 }
 
@@ -167,46 +314,89 @@ pub fn build_env(server: &NativeServer) -> Result<BTreeMap<String, String>> {
     let mut env = BTreeMap::new();
     match &server.auth {
         AuthKind::None => {}
-        AuthKind::OAuth(provider_id) => match provider_id.as_str() {
-            "github" => {
-                env.insert(
-                    "GITHUB_PERSONAL_ACCESS_TOKEN".into(),
-                    "vault:oauth:github:access_token".into(),
-                );
+        AuthKind::OAuth(provider_id) => {
+            // Remote OAuth servers use Authorization header, not env vars
+            if !server.is_remote() {
+                match provider_id.as_str() {
+                    "google" => {
+                        // Google Workspace CLI reads token from this env var
+                        // (highest priority, bypasses gws's own auth)
+                        if server.id == "google-workspace" {
+                            env.insert(
+                                "GOOGLE_WORKSPACE_CLI_TOKEN".into(),
+                                "vault:oauth:google:access_token".into(),
+                            );
+                        } else {
+                            // Legacy: gdrive MCP server uses credential files
+                            let (oauth_path, creds_path) =
+                                oauth::gdrive_credential_paths().ok_or_else(|| {
+                                    HarborError::OAuthError(
+                                        "Google Drive credentials not written yet. Complete OAuth first."
+                                            .into(),
+                                    )
+                                })?;
+                            env.insert("GDRIVE_OAUTH_PATH".into(), oauth_path);
+                            env.insert("GDRIVE_CREDENTIALS_PATH".into(), creds_path);
+                        }
+                    }
+                    "slack" => {
+                        env.insert(
+                            "SLACK_BOT_TOKEN".into(),
+                            "vault:oauth:slack:access_token".into(),
+                        );
+                        env.insert("SLACK_TEAM_ID".into(), "vault:oauth:slack:team_id".into());
+                    }
+                    other => {
+                        env.insert(
+                            format!("{}_TOKEN", other.to_uppercase()),
+                            format!("vault:oauth:{other}:access_token"),
+                        );
+                    }
+                }
             }
-            "google" => {
-                let (oauth_path, creds_path) =
-                    oauth::gdrive_credential_paths().ok_or_else(|| {
-                        HarborError::OAuthError(
-                            "Google Drive credentials not written yet. Complete OAuth first."
-                                .into(),
-                        )
-                    })?;
-                env.insert("GDRIVE_OAUTH_PATH".into(), oauth_path);
-                env.insert("GDRIVE_CREDENTIALS_PATH".into(), creds_path);
-            }
-            "slack" => {
-                env.insert(
-                    "SLACK_BOT_TOKEN".into(),
-                    "vault:oauth:slack:access_token".into(),
-                );
-                env.insert("SLACK_TEAM_ID".into(), "vault:oauth:slack:team_id".into());
-            }
-            other => {
-                env.insert(
-                    format!("{}_TOKEN", other.to_uppercase()),
-                    format!("vault:oauth:{other}:access_token"),
-                );
-            }
-        },
+        }
         AuthKind::ManualToken { env_var, .. } => {
-            env.insert(
-                env_var.to_string(),
-                format!("vault:{}", env_var.to_lowercase()),
-            );
+            // For remote servers, auth goes in headers, not env vars
+            if !server.is_remote() {
+                env.insert(
+                    env_var.to_string(),
+                    format!("vault:{}", env_var.to_lowercase()),
+                );
+            }
         }
     }
     Ok(env)
+}
+
+/// Build the HTTP headers map for a remote native server.
+pub fn build_headers(server: &NativeServer) -> BTreeMap<String, String> {
+    let mut headers = BTreeMap::new();
+
+    // Add default headers from the catalog definition
+    for (k, v) in server.default_headers {
+        headers.insert(k.to_string(), v.to_string());
+    }
+
+    // Add auth headers for remote servers
+    if server.is_remote() {
+        match &server.auth {
+            AuthKind::ManualToken { env_var, .. } => {
+                headers.insert(
+                    "Authorization".into(),
+                    format!("Bearer vault:{}", env_var.to_lowercase()),
+                );
+            }
+            AuthKind::OAuth(provider_id) => {
+                headers.insert(
+                    "Authorization".into(),
+                    format!("Bearer vault:oauth:{provider_id}:access_token"),
+                );
+            }
+            AuthKind::None => {}
+        }
+    }
+
+    headers
 }
 
 /// Check whether a native server's auth requirement is already satisfied.

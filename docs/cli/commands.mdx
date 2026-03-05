@@ -10,7 +10,44 @@ Every command has a nautical name and a standard alias. Use whichever you prefer
 
 <Info>Alias: `harbor add`</Info>
 
-Dock a new MCP server into the harbor.
+Dock a new MCP server into the harbor. Supports three modes: **native** (one-click catalog), **custom stdio**, and **custom remote**.
+
+### Native servers
+
+Dock a server from Harbor's built-in catalog with a single command:
+
+```sh
+harbor dock <native-id> [--name <name>] [--skip-auth] [--disabled] [--auto-start] [-- <extra-args>...]
+```
+
+| Flag | Description |
+|------|-------------|
+| `<native-id>` | Server id from the catalog (e.g., `github`, `slack`, `filesystem`) |
+| `--name` | Override the default server name |
+| `--skip-auth` | Dock now, authorize later |
+| `--disabled` | Keep moored (disabled) initially |
+| `--auto-start` | Start automatically when Harbor launches |
+| `-- <args>` | Extra arguments appended after the catalog defaults |
+
+**Examples:**
+
+```sh
+# Dock GitHub (remote, needs a PAT in the vault)
+harbor dock github
+
+# Dock filesystem with allowed directories
+harbor dock filesystem -- ~/Documents ~/Projects
+
+# Dock Slack (opens browser for OAuth)
+harbor dock slack
+
+# Dock with a custom name
+harbor dock atlassian --name my-jira
+```
+
+See the [native servers guide](/guides/native-servers) for the full catalog.
+
+### Custom stdio servers
 
 ```sh
 harbor dock --name <name> --command <command> [--args <args>...] [--env <KEY=VALUE>...]
@@ -19,14 +56,36 @@ harbor dock --name <name> --command <command> [--args <args>...] [--env <KEY=VAL
 | Flag | Description |
 |------|-------------|
 | `--name` | Unique name for the server |
-| `--command` | Executable to run |
-| `--args` | Arguments to pass to the command (comma-separated for multiple) |
+| `--command` | Executable to run (e.g., `npx`, `node`, `python`) |
+| `--args` | Arguments to pass (comma-separated for multiple) |
+| `--env` | Environment variables (supports `vault:KEY` references) |
+| `--auto-start` | Start automatically when Harbor launches |
+| `--disabled` | Keep moored (disabled) initially |
+
+**Example:**
+
+```sh
+harbor dock --name memory --command npx --args "-y,@modelcontextprotocol/server-memory"
+```
+
+### Custom remote (HTTP) servers
+
+```sh
+harbor dock --name <name> --url <url> [-H <KEY:VALUE>...] [--env <KEY=VALUE>...]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--name` | Unique name for the server |
+| `--url` | URL of the remote MCP HTTP endpoint |
+| `-H`, `--header` | Custom HTTP headers (`KEY:VALUE`, can be repeated) |
 | `--env` | Environment variables (supports `vault:KEY` references) |
 
 **Example:**
 
 ```sh
-harbor dock --name memory --command npx --args @modelcontextprotocol/server-memory
+harbor dock --name my-api --url https://mcp.example.com/v1/mcp \
+  -H "Authorization:Bearer vault:my_api_key"
 ```
 
 ---
@@ -47,11 +106,15 @@ harbor undock --name <name>
 
 <Info>Alias: `harbor list`</Info>
 
-Review your fleet of docked servers. Shows each server's name, command, status, and enabled state.
+Review your fleet of docked servers. Shows each server's name, command/url, status, and enabled state.
 
 ```sh
-harbor fleet
+harbor fleet [--host <host>]
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--host` | Filter servers bound to a specific host (optional) |
 
 ---
 
@@ -85,6 +148,10 @@ harbor manifest
 
 Signal connected hosts to update their charts. This merges your docked servers into each host's config file.
 
+<Note>
+Syncing happens **automatically** when you dock, undock, toggle, or connect a host. You only need `harbor signal` to force a manual re-sync.
+</Note>
+
 ```sh
 harbor signal [--host <host>]
 ```
@@ -95,6 +162,22 @@ harbor signal [--host <host>]
 
 ---
 
+## harbor port
+
+<Info>Alias: `harbor host`</Info>
+
+Manage host connections. Users opt in to each host individually.
+
+```sh
+harbor port                    # List all hosts with link status
+harbor port link <host>        # Link a host to start syncing
+harbor port unlink <host>      # Unlink a host
+```
+
+Valid hosts: `claude`, `claude-desktop`, `codex`, `vscode`, `cursor`
+
+---
+
 ## harbor lighthouse
 
 <Info>Alias: `harbor gateway`</Info>
@@ -102,14 +185,30 @@ harbor signal [--host <host>]
 Light the lighthouse — start the HTTP/SSE gateway to expose your MCP servers over the network.
 
 ```sh
-harbor lighthouse [--port <port>]
+harbor lighthouse [--port <port>] [--host <host>] [--expose] [--token <token>]
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--port` | Port to listen on (default: `3100`) |
+| `--host` | IP to bind to (default: `127.0.0.1`) |
+| `--expose` | Shorthand for `--host 0.0.0.0` (expose to network) |
+| `--token` | Bearer token required for remote (non-localhost) access |
 
 See the [gateway guide](/guides/gateway) for endpoint details.
+
+---
+
+## harbor cargo
+
+<Info>Alias: `harbor filter`</Info>
+
+Manage tool filtering — control which tools each server exposes.
+
+```sh
+harbor cargo allowlist <server> [tools...]   # Set tool allowlist
+harbor cargo blocklist <server> [tools...]   # Set tool blocklist
+```
 
 ---
 
@@ -173,7 +272,7 @@ You can also uninstall via the install script:
   </Tab>
 </Tabs>
 
-## `harbor update`
+## harbor update
 
 Update Harbor to the latest version. Checks GitHub releases, downloads the appropriate binary for your platform, verifies the SHA256 checksum, and replaces the current binary.
 

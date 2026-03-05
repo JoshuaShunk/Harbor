@@ -1,7 +1,7 @@
 ---
 title: "Host Sync"
 sidebarTitle: "Host Sync"
-description: "How Harbor syncs MCP servers to Claude Code, Codex, VS Code, and Cursor."
+description: "How Harbor syncs MCP servers to Claude Code, Claude Desktop, Codex, VS Code, and Cursor."
 ---
 
 Harbor supports syncing your MCP server fleet to multiple AI development tools simultaneously.
@@ -11,9 +11,32 @@ Harbor supports syncing your MCP server fleet to multiple AI development tools s
 | Host | Config File | Config Key |
 |------|------------|------------|
 | **Claude Code** | `~/.claude.json` | `mcpServers` |
+| **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` | `mcpServers` |
 | **Codex** | `~/.codex/config.toml` | `mcp_servers` |
 | **VS Code** | `.vscode/mcp.json` | `servers` |
 | **Cursor** | `~/.cursor/mcp.json` | `mcpServers` |
+
+## Linking Hosts
+
+Before Harbor can sync to a host, you must link it:
+
+```sh
+harbor port link claude
+harbor port link claude-desktop
+harbor port link vscode
+```
+
+Or use the **Ports** page in the desktop app and click **Link** next to each host.
+
+## Automatic Syncing
+
+Harbor automatically syncs your fleet to all linked hosts whenever you:
+
+- **Dock** or **undock** a server
+- **Toggle** a server on/off
+- **Link** or **unlink** a host
+
+You can also force a manual sync with `harbor signal` or the **Signal All** button in the desktop app.
 
 ## How Syncing Works
 
@@ -40,12 +63,12 @@ You can enable or disable individual servers for specific hosts. A server might 
 
 ```toml
 [servers.github]
-command = "npx"
-args = ["-y", "@modelcontextprotocol/server-github"]
+url = "https://api.githubcopilot.com/mcp/"
 enabled = true
 
 [servers.github.hosts]
 claude = true
+claude-desktop = true
 codex = true
 vscode = false
 cursor = false

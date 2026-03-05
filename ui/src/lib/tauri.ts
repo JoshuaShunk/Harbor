@@ -4,9 +4,11 @@ import { invoke } from "@tauri-apps/api/core";
 
 export interface ServerConfig {
   source: string | null;
-  command: string;
+  command: string | null;
   args: string[];
   env: Record<string, string>;
+  url: string | null;
+  headers: Record<string, string> | null;
   enabled: boolean;
   auto_start: boolean;
   hosts: Record<string, boolean>;
@@ -18,6 +20,8 @@ export interface ServerStatus {
   running: boolean;
   pid: number | null;
   command: string;
+  is_remote: boolean;
+  source: string | null;
 }
 
 export interface HostStatus {
@@ -33,6 +37,8 @@ export interface HarborStatus {
   servers: ServerStatus[];
   hosts: HostStatus[];
   gateway_port: number;
+  gateway_host: string;
+  local_ip: string | null;
 }
 
 // --- Tauri command wrappers ---
@@ -43,11 +49,22 @@ export async function getStatus(): Promise<HarborStatus> {
 
 export async function addServer(
   name: string,
-  command: string,
+  command: string | null,
   args: string[],
   env: Record<string, string>,
+  url?: string | null,
+  headers?: Record<string, string> | null,
+  source?: string | null,
 ): Promise<void> {
-  return invoke("add_server", { name, command, args, env });
+  return invoke("add_server", {
+    name,
+    command,
+    args,
+    env,
+    url: url ?? null,
+    headers: headers ?? null,
+    source: source ?? null,
+  });
 }
 
 export async function removeServer(name: string): Promise<void> {
@@ -135,6 +152,23 @@ export async function stopGateway(): Promise<string> {
 
 export async function gatewayStatus(): Promise<boolean> {
   return invoke<boolean>("gateway_status");
+}
+
+export interface GatewaySettingsInfo {
+  host: string;
+  token: string | null;
+}
+
+export async function getGatewaySettings(): Promise<GatewaySettingsInfo> {
+  return invoke<GatewaySettingsInfo>("get_gateway_settings");
+}
+
+export async function setGatewaySettings(host: string, token: string | null): Promise<void> {
+  return invoke("set_gateway_settings", { host, token });
+}
+
+export async function reloadGateway(): Promise<void> {
+  return invoke("reload_gateway");
 }
 
 // --- Marketplace ---
@@ -236,13 +270,86 @@ export interface NativeServerInfo {
   description: string;
   auth_kind: string;
   has_auth: boolean;
+  is_remote: boolean;
   manual_vault_key: string | null;
+  extra_args_kind: string;
+  extra_args_label: string | null;
+  extra_args_placeholder: string | null;
 }
 
 export async function catalogList(): Promise<NativeServerInfo[]> {
   return invoke<NativeServerInfo[]>("catalog_list");
 }
 
-export async function dockNative(id: string, name?: string): Promise<void> {
-  return invoke("dock_native", { id, name: name ?? null });
+export async function dockNative(
+  id: string,
+  name?: string,
+  extraArgs?: string[],
+): Promise<void> {
+  return invoke("dock_native", {
+    id,
+    name: name ?? null,
+    extraArgs: extraArgs ?? null,
+  });
+}
+
+// --- Server Extra Args ---
+
+export interface ServerExtraArgsInfo {
+  extra_args: string[];
+  extra_args_kind: string;
+  extra_args_label: string | null;
+  extra_args_placeholder: string | null;
+}
+
+export async function getServerExtraArgs(name: string): Promise<ServerExtraArgsInfo> {
+  return invoke<ServerExtraArgsInfo>("get_server_extra_args", { name });
+}
+
+export async function setServerExtraArgs(name: string, extraArgs: string[]): Promise<void> {
+  return invoke("set_server_extra_args", { name, extraArgs });
+}
+
+// --- Server Args (general, any server) ---
+
+export async function getServerArgs(name: string): Promise<string[]> {
+  return invoke<string[]>("get_server_args", { name });
+}
+
+export async function setServerArgs(name: string, args: string[]): Promise<void> {
+  return invoke("set_server_args", { name, args });
+}
+
+// --- Config Schema (from MCP Registry) ---
+
+export interface ConfigSchemaArg {
+  arg_type: string;
+  name: string;
+  description: string | null;
+  is_required: boolean;
+  format: string;
+  default: string | null;
+  is_secret: boolean;
+  is_repeated: boolean;
+  choices: string[] | null;
+  placeholder: string | null;
+  value_hint: string | null;
+}
+
+export interface ConfigSchemaEnvVar {
+  name: string;
+  description: string | null;
+  is_required: boolean;
+  is_secret: boolean;
+  default: string | null;
+}
+
+export interface ConfigSchemaResponse {
+  args: ConfigSchemaArg[] | null;
+  env_vars: ConfigSchemaEnvVar[] | null;
+  registry_name: string | null;
+}
+
+export async function getConfigSchema(name: string): Promise<ConfigSchemaResponse> {
+  return invoke<ConfigSchemaResponse>("get_config_schema", { name });
 }

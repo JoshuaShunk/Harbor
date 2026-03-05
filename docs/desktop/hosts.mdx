@@ -11,30 +11,38 @@ The **Ports** page lets you connect Harbor to your AI development tools and sync
 | Host | Config File | Status |
 |------|------------|--------|
 | Claude Code | `~/.claude.json` | Supported |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` | Supported |
 | Codex | `~/.codex/config.toml` | Supported |
 | VS Code | `.vscode/mcp.json` | Supported |
 | Cursor | `~/.cursor/mcp.json` | Supported |
 
-## Connecting a Host
+## Linking a Host
 
 1. Find the host in the list
 2. Click **Link** to connect it
 3. Harbor will detect the host's config file location automatically
 
-## Syncing
+## Automatic Syncing
 
-Once connected, you can sync your fleet to hosts:
+Once linked, Harbor **automatically syncs** your fleet to hosts whenever you:
+
+- Dock or undock a server
+- Toggle a server on/off
+- Link or unlink a host
+
+You can also manually trigger a sync:
 
 - **Signal** (per host) — Sync only to that specific host
-- **Signal All** — Sync to every connected host at once
+- **Signal All** — Sync to every linked host at once
 
 ## How Syncing Works
 
-When you signal a host, Harbor:
+When Harbor syncs to a host, it:
 
 1. Reads the host's existing config file
 2. Merges your enabled servers into the config
-3. Writes the updated config back
+3. Resolves any `vault:` references to actual values from your OS keychain
+4. Writes the updated config back
 
 <Note>
 Harbor never overwrites your existing host configuration. It only adds or updates servers that Harbor manages, leaving your manually-configured servers untouched.

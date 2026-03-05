@@ -222,6 +222,14 @@ pub fn run() {
             commands::start_gateway,
             commands::stop_gateway,
             commands::gateway_status,
+            commands::set_gateway_settings,
+            commands::get_gateway_settings,
+            commands::reload_gateway,
+            commands::get_server_extra_args,
+            commands::set_server_extra_args,
+            commands::get_server_args,
+            commands::set_server_args,
+            commands::get_config_schema,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Harbor");

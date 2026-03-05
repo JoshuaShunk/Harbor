@@ -4,28 +4,48 @@ sidebarTitle: "Servers"
 description: "Manage your docked MCP servers from the Fleet page."
 ---
 
-The **Fleet** page is where you manage all your docked MCP servers.
+The **Fleet** page is where you manage all your docked MCP servers — both local stdio servers and remote HTTP servers.
 
 ## Adding a Server
 
-1. Click **Add Server** at the top of the page
+1. Click **Dock Ship** at the top of the page
 2. Fill in the server details:
-   - **Name** — A unique identifier for the server (e.g., `github`, `memory`)
-   - **Command** — The executable to run (e.g., `npx`, `node`, `python`)
-   - **Arguments** — Command-line arguments (e.g., `@modelcontextprotocol/server-github`)
-   - **Environment Variables** — Key-value pairs passed to the server process. Use `vault:SECRET_NAME` to reference secrets stored in the [vault](/guides/vault)
+   - **Name** — A unique identifier for the server
+   - **Command** — The executable to run (for stdio servers), or **URL** for remote HTTP servers
+   - **Arguments** — Command-line arguments
+   - **Environment Variables** — Key-value pairs. Use `vault:SECRET_NAME` to reference secrets stored in the [vault](/guides/vault)
 3. Click **Save** to dock the server
+
+<Tip>
+For the fastest setup, use the [Native Fleet](/desktop/marketplace) on the Scout page to dock pre-configured servers with one click.
+</Tip>
 
 ## Managing Servers
 
-Each server card shows its name, command, status, and enabled state.
+Each server card shows its name, command (or URL for remote servers), status, and a toggle switch to enable or disable it.
 
 | Action | Description |
 |--------|-------------|
-| **Rig** | Enable the server so it's included when syncing to hosts |
-| **Moor** | Disable the server without removing it |
+| **Toggle switch** | Enable or disable the server. Disabled servers are not synced to hosts. |
 | **Remove** | Permanently undock the server from Harbor |
+| **Tool Filters** | Expand a server to discover its tools and configure allow/block lists |
+| **Edit Args** | Modify the server's arguments or extra args |
+
+## Remote Servers
+
+Servers docked with a URL (instead of a command) are remote HTTP MCP servers. These are indicated with a globe icon. Remote servers connect over HTTP/SSE and support `vault:` references in headers for authentication.
+
+## Tool Filtering
+
+Expand any running server to see its available tools. You can:
+
+- **Search** tools by name
+- **Block** individual tools to hide them from hosts
+- **Allowlist** specific tools to expose only those
+- Set **per-host overrides** so different hosts see different tools
 
 ## Syncing to Hosts
 
-After making changes to your fleet, go to the [Ports](/desktop/hosts) page and click **Signal All** to push your changes to all connected hosts. Servers that are disabled (moored) will not be synced.
+<Note>
+Syncing is **automatic**. When you dock, undock, toggle, or modify a server, Harbor immediately pushes the updated fleet to all linked hosts. No manual sync step needed.
+</Note>

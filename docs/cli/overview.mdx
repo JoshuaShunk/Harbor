@@ -46,13 +46,14 @@ Run `harbor --help` to see all available commands, or `harbor <command> --help` 
 ## Quick Example
 
 ```sh
-# Dock a server
-harbor dock --name github --command npx \
-  --args @modelcontextprotocol/server-github \
-  --env GITHUB_TOKEN=vault:GITHUB_TOKEN
+# Dock a native server (one command, built-in auth)
+harbor dock github
 
-# Sync to all hosts
-harbor signal
+# Or dock a custom server manually
+harbor dock --name memory --command npx --args "-y,@modelcontextprotocol/server-memory"
+
+# Link a host
+harbor port link claude
 
 # Check your fleet
 harbor fleet
@@ -67,10 +68,17 @@ Harbor uses a nautical theme for its commands. Every command has a standard alia
 
 | Nautical | Standard | What it does |
 |----------|----------|-------------|
-| `dock` | `add` | Add a server |
+| `dock` | `add` | Add a server (native or custom) |
 | `undock` | `remove` | Remove a server |
 | `fleet` | `list` | List servers |
+| `launch` | `start` | Start a server |
+| `manifest` | `status` | Show status |
 | `signal` | `sync` | Sync to hosts |
+| `port` | `host` | Manage host connections |
+| `lighthouse` | `gateway` | Start the HTTP gateway |
+| `cargo` | `filter` | Manage tool filters |
+| `scout` | `search` | Search the MCP Registry |
+| `chest` | `vault` | Manage secrets |
 | `scuttle` | `uninstall` | Uninstall Harbor |
 | `update` | — | Update to latest version |
 

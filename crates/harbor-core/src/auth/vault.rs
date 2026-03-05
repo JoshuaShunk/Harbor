@@ -82,7 +82,12 @@ impl Vault {
         }
     }
 
-    /// Resolve all vault references in an env map.
+    /// Resolve all vault references in an env/header map.
+    ///
+    /// Handles three patterns:
+    /// - `vault:key_name` — entire value is a vault reference
+    /// - `Bearer vault:key_name` — vault reference embedded after a prefix
+    /// - `plain_value` — returned as-is
     pub fn resolve_env(env: &BTreeMap<String, String>) -> BTreeMap<String, String> {
         env.iter()
             .map(|(key, value)| {
@@ -91,6 +96,17 @@ impl Vault {
                         warn!(key = key, error = %e, "Failed to resolve vault reference");
                         String::new()
                     })
+                } else if let Some(pos) = value.find("vault:") {
+                    // Embedded vault reference (e.g. "Bearer vault:oauth:slack:access_token")
+                    let prefix = &value[..pos];
+                    let vault_ref = &value[pos..];
+                    match Self::resolve(vault_ref) {
+                        Ok(resolved_val) => format!("{prefix}{resolved_val}"),
+                        Err(e) => {
+                            warn!(key = key, error = %e, "Failed to resolve embedded vault reference");
+                            String::new()
+                        }
+                    }
                 } else {
                     value.clone()
                 };

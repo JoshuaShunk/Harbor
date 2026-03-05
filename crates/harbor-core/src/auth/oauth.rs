@@ -32,6 +32,13 @@ pub struct OAuthProvider {
     /// If true, the provider requires HTTPS redirect URIs.
     /// We use the remote redirect page at harbormcp.ai which forwards to localhost.
     pub requires_https_redirect: bool,
+    /// If true, scopes are sent as `user_scope` instead of `scope` in the auth URL,
+    /// and the access token is read from `authed_user.access_token` in the response.
+    /// This is used for Slack user-token OAuth flows.
+    pub uses_user_scope: bool,
+    /// Dynamic client registration endpoint (RFC 7591).
+    /// If set, Harbor will register itself to obtain a client_id before starting the auth flow.
+    pub registration_endpoint: Option<String>,
 }
 
 /// Returns the built-in OAuth providers shipped with Harbor.
@@ -60,17 +67,30 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
             default_client_secret: option_env!("HARBOR_GITHUB_CLIENT_SECRET").map(String::from),
             supports_pkce: false,
             requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: None,
         },
         OAuthProvider {
             id: "google".into(),
             display_name: "Google".into(),
             auth_url: "https://accounts.google.com/o/oauth2/v2/auth".into(),
             token_url: "https://oauth2.googleapis.com/token".into(),
-            scopes: vec!["https://www.googleapis.com/auth/drive.readonly".into()],
+            scopes: vec![
+                "https://www.googleapis.com/auth/drive.readonly".into(),
+                "https://www.googleapis.com/auth/gmail.modify".into(),
+                "https://www.googleapis.com/auth/calendar".into(),
+                "https://www.googleapis.com/auth/spreadsheets".into(),
+                "https://www.googleapis.com/auth/documents".into(),
+                "https://www.googleapis.com/auth/chat.messages".into(),
+                "https://www.googleapis.com/auth/chat.spaces.readonly".into(),
+                "https://www.googleapis.com/auth/admin.directory.user.readonly".into(),
+            ],
             default_client_id: option_env!("HARBOR_GOOGLE_CLIENT_ID").map(String::from),
             default_client_secret: option_env!("HARBOR_GOOGLE_CLIENT_SECRET").map(String::from),
             supports_pkce: true,
             requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: None,
         },
         OAuthProvider {
             id: "slack".into(),
@@ -83,12 +103,160 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
                 "chat:write".into(),
                 "reactions:write".into(),
                 "users:read".into(),
-                "users.profile:read".into(),
+                "users:read.email".into(),
+                "search:read.public".into(),
+                "search:read.private".into(),
             ],
             default_client_id: option_env!("HARBOR_SLACK_CLIENT_ID").map(String::from),
             default_client_secret: option_env!("HARBOR_SLACK_CLIENT_SECRET").map(String::from),
             supports_pkce: false,
             requires_https_redirect: true,
+            uses_user_scope: true,
+            registration_endpoint: None,
+        },
+        OAuthProvider {
+            id: "atlassian".into(),
+            display_name: "Atlassian".into(),
+            auth_url: "https://mcp.atlassian.com/v1/authorize".into(),
+            token_url: "https://cf.mcp.atlassian.com/v1/token".into(),
+            scopes: vec![],
+            default_client_id: None,
+            default_client_secret: None,
+            supports_pkce: true,
+            requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: Some(
+                "https://cf.mcp.atlassian.com/v1/register".into(),
+            ),
+        },
+        OAuthProvider {
+            id: "linear".into(),
+            display_name: "Linear".into(),
+            auth_url: "https://mcp.linear.app/authorize".into(),
+            token_url: "https://mcp.linear.app/token".into(),
+            scopes: vec![],
+            default_client_id: None,
+            default_client_secret: None,
+            supports_pkce: true,
+            requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: Some("https://mcp.linear.app/register".into()),
+        },
+        OAuthProvider {
+            id: "notion".into(),
+            display_name: "Notion".into(),
+            auth_url: "https://mcp.notion.com/authorize".into(),
+            token_url: "https://mcp.notion.com/token".into(),
+            scopes: vec![],
+            default_client_id: None,
+            default_client_secret: None,
+            supports_pkce: true,
+            requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: Some("https://mcp.notion.com/register".into()),
+        },
+        OAuthProvider {
+            id: "sentry".into(),
+            display_name: "Sentry".into(),
+            auth_url: "https://mcp.sentry.dev/oauth/authorize".into(),
+            token_url: "https://mcp.sentry.dev/oauth/token".into(),
+            scopes: vec![],
+            default_client_id: None,
+            default_client_secret: None,
+            supports_pkce: true,
+            requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: Some("https://mcp.sentry.dev/oauth/register".into()),
+        },
+        OAuthProvider {
+            id: "figma".into(),
+            display_name: "Figma".into(),
+            auth_url: "https://www.figma.com/oauth/mcp".into(),
+            token_url: "https://api.figma.com/v1/oauth/token".into(),
+            scopes: vec![],
+            default_client_id: None,
+            default_client_secret: None,
+            supports_pkce: true,
+            requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: Some(
+                "https://api.figma.com/v1/oauth/mcp/register".into(),
+            ),
+        },
+        OAuthProvider {
+            id: "stripe".into(),
+            display_name: "Stripe".into(),
+            auth_url: "https://access.stripe.com/mcp/oauth2/authorize".into(),
+            token_url: "https://access.stripe.com/mcp/oauth2/token".into(),
+            scopes: vec![],
+            default_client_id: None,
+            default_client_secret: None,
+            supports_pkce: true,
+            requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: Some(
+                "https://access.stripe.com/mcp/oauth2/register".into(),
+            ),
+        },
+        OAuthProvider {
+            id: "vercel".into(),
+            display_name: "Vercel".into(),
+            auth_url: "https://vercel.com/oauth/authorize".into(),
+            token_url: "https://vercel.com/api/login/oauth/token".into(),
+            scopes: vec![],
+            default_client_id: None,
+            default_client_secret: None,
+            supports_pkce: true,
+            requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: Some(
+                "https://vercel.com/api/login/oauth/register".into(),
+            ),
+        },
+        OAuthProvider {
+            id: "supabase".into(),
+            display_name: "Supabase".into(),
+            auth_url: "https://api.supabase.com/v1/oauth/authorize".into(),
+            token_url: "https://api.supabase.com/v1/oauth/token".into(),
+            scopes: vec![],
+            default_client_id: None,
+            default_client_secret: None,
+            supports_pkce: true,
+            requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: Some(
+                "https://api.supabase.com/platform/oauth/apps/register".into(),
+            ),
+        },
+        OAuthProvider {
+            id: "cloudflare".into(),
+            display_name: "Cloudflare".into(),
+            auth_url: "https://bindings.mcp.cloudflare.com/oauth/authorize".into(),
+            token_url: "https://bindings.mcp.cloudflare.com/token".into(),
+            scopes: vec![],
+            default_client_id: None,
+            default_client_secret: None,
+            supports_pkce: true,
+            requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: Some(
+                "https://bindings.mcp.cloudflare.com/register".into(),
+            ),
+        },
+        OAuthProvider {
+            id: "neon".into(),
+            display_name: "Neon".into(),
+            auth_url: "https://mcp.neon.tech/api/authorize".into(),
+            token_url: "https://mcp.neon.tech/api/token".into(),
+            scopes: vec![],
+            default_client_id: None,
+            default_client_secret: None,
+            supports_pkce: true,
+            requires_https_redirect: false,
+            uses_user_scope: false,
+            registration_endpoint: Some(
+                "https://mcp.neon.tech/api/register".into(),
+            ),
         },
     ]
 }
@@ -111,6 +279,29 @@ pub fn provider_for_server(qualified_name: &str) -> Option<&'static str> {
         Some("google")
     } else if server_part.contains("slack") {
         Some("slack")
+    } else if server_part.contains("atlassian")
+        || server_part.contains("jira")
+        || server_part.contains("confluence")
+    {
+        Some("atlassian")
+    } else if server_part.contains("linear") {
+        Some("linear")
+    } else if server_part.contains("notion") {
+        Some("notion")
+    } else if server_part.contains("sentry") {
+        Some("sentry")
+    } else if server_part.contains("figma") {
+        Some("figma")
+    } else if server_part.contains("stripe") {
+        Some("stripe")
+    } else if server_part.contains("vercel") {
+        Some("vercel")
+    } else if server_part.contains("supabase") {
+        Some("supabase")
+    } else if server_part.contains("cloudflare") {
+        Some("cloudflare")
+    } else if server_part.contains("neon") {
+        Some("neon")
     } else {
         None
     }
@@ -122,6 +313,16 @@ pub fn env_var_for_provider(provider_id: &str) -> &'static str {
         "github" => "GITHUB_PERSONAL_ACCESS_TOKEN",
         "google" => "GOOGLE_ACCESS_TOKEN",
         "slack" => "SLACK_BOT_TOKEN",
+        "atlassian" => "ATLASSIAN_ACCESS_TOKEN",
+        "linear" => "LINEAR_ACCESS_TOKEN",
+        "notion" => "NOTION_ACCESS_TOKEN",
+        "sentry" => "SENTRY_ACCESS_TOKEN",
+        "figma" => "FIGMA_ACCESS_TOKEN",
+        "stripe" => "STRIPE_ACCESS_TOKEN",
+        "vercel" => "VERCEL_ACCESS_TOKEN",
+        "supabase" => "SUPABASE_ACCESS_TOKEN",
+        "cloudflare" => "CLOUDFLARE_ACCESS_TOKEN",
+        "neon" => "NEON_ACCESS_TOKEN",
         _ => "ACCESS_TOKEN",
     }
 }
@@ -244,6 +445,76 @@ const CALLBACK_SUCCESS_HTML: &str = r#"<html>
 </html>"#;
 
 // ---------------------------------------------------------------------------
+// Dynamic client registration (RFC 7591)
+// ---------------------------------------------------------------------------
+
+/// Register a client dynamically with a provider that supports RFC 7591.
+/// Returns the `client_id` (and optional `client_secret`) and stores them
+/// in the vault for reuse.
+///
+/// Always re-registers because the local callback server uses an ephemeral
+/// port, so the redirect_uri changes each time.
+async fn dynamic_register(
+    provider_id: &str,
+    registration_endpoint: &str,
+    redirect_uri: &str,
+) -> Result<String> {
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "client_name": "Harbor MCP Hub",
+        "redirect_uris": [redirect_uri],
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "token_endpoint_auth_method": "none"
+    });
+
+    let response = client
+        .post(registration_endpoint)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| {
+            HarborError::OAuthError(format!("Dynamic client registration failed: {e}"))
+        })?;
+
+    let status = response.status();
+    let body_text = response.text().await.map_err(|e| {
+        HarborError::OAuthError(format!("Failed to read registration response: {e}"))
+    })?;
+
+    if !status.is_success() {
+        return Err(HarborError::OAuthError(format!(
+            "Dynamic client registration returned {status}: {body_text}"
+        )));
+    }
+
+    let resp: serde_json::Value = serde_json::from_str(&body_text).map_err(|e| {
+        HarborError::OAuthError(format!("Failed to parse registration response: {e}"))
+    })?;
+
+    let client_id = resp["client_id"]
+        .as_str()
+        .ok_or_else(|| HarborError::OAuthError("No client_id in registration response".into()))?
+        .to_string();
+
+    // Store for reuse
+    Vault::set(&format!("oauth:{provider_id}:client_id"), &client_id)?;
+
+    if let Some(secret) = resp["client_secret"].as_str() {
+        Vault::set(
+            &format!("oauth:{provider_id}:client_secret"),
+            secret,
+        )?;
+    }
+
+    info!(
+        provider = provider_id,
+        "Dynamic client registration complete"
+    );
+    Ok(client_id)
+}
+
+// ---------------------------------------------------------------------------
 // Token exchange
 // ---------------------------------------------------------------------------
 
@@ -336,10 +607,22 @@ pub async fn exchange_code(
         )));
     }
 
-    let access_token = body["access_token"]
-        .as_str()
-        .ok_or_else(|| HarborError::OAuthError("No access_token in response".into()))?
-        .to_string();
+    // For user-scope providers (Slack), the user token is in authed_user.access_token
+    let access_token = if provider.uses_user_scope {
+        body.get("authed_user")
+            .and_then(|u| u.get("access_token"))
+            .and_then(|v| v.as_str())
+            .or_else(|| body["access_token"].as_str())
+            .ok_or_else(|| {
+                HarborError::OAuthError("No access_token in user-scope response".into())
+            })?
+            .to_string()
+    } else {
+        body["access_token"]
+            .as_str()
+            .ok_or_else(|| HarborError::OAuthError("No access_token in response".into()))?
+            .to_string()
+    };
 
     let expires_at = body
         .get("expires_in")
@@ -507,8 +790,120 @@ pub fn clear_tokens(provider_id: &str) -> Result<()> {
     let _ = Vault::delete(&format!("oauth:{provider_id}:access_token"));
     let _ = Vault::delete(&format!("oauth:{provider_id}:refresh_token"));
     let _ = Vault::delete(&format!("oauth:{provider_id}:expires_at"));
+    let _ = Vault::delete(&format!("oauth:{provider_id}:team_id"));
     info!(provider = provider_id, "OAuth tokens cleared");
     Ok(())
+}
+
+/// Refresh an OAuth access token using the stored refresh token.
+///
+/// Returns the new access token on success. If no refresh token is stored,
+/// returns an error suggesting re-authentication.
+pub async fn refresh_access_token(provider_id: &str) -> Result<String> {
+    let provider = builtin_providers()
+        .into_iter()
+        .find(|p| p.id == provider_id)
+        .ok_or_else(|| HarborError::OAuthError(format!("Unknown provider: {provider_id}")))?;
+
+    let refresh_token =
+        Vault::get(&format!("oauth:{provider_id}:refresh_token")).map_err(|_| {
+            HarborError::OAuthError(format!(
+                "No refresh token for {provider_id}. Re-authenticate with: harbor dock {}",
+                provider_id
+            ))
+        })?;
+
+    let client_id = Vault::get(&format!("oauth:{provider_id}:client_id"))
+        .ok()
+        .or_else(|| provider.default_client_id.clone())
+        .unwrap_or_default();
+
+    let client_secret = Vault::get(&format!("oauth:{provider_id}:client_secret"))
+        .ok()
+        .or_else(|| provider.default_client_secret.clone());
+
+    let mut params: Vec<(&str, &str)> = vec![
+        ("grant_type", "refresh_token"),
+        ("refresh_token", &refresh_token),
+        ("client_id", &client_id),
+    ];
+
+    let secret_owned;
+    if let Some(ref s) = client_secret {
+        secret_owned = s.clone();
+        params.push(("client_secret", &secret_owned));
+    }
+
+    let http = reqwest::Client::new();
+    let response = http
+        .post(&provider.token_url)
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| HarborError::OAuthError(format!("Token refresh request failed: {e}")))?;
+
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| HarborError::OAuthError(format!("Failed to parse refresh response: {e}")))?;
+
+    // Slack error format
+    if body.get("ok").and_then(|v| v.as_bool()) == Some(false) {
+        let error = body
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        return Err(HarborError::OAuthError(format!(
+            "Token refresh failed: {error}"
+        )));
+    }
+
+    if let Some(error) = body.get("error") {
+        let desc = body
+            .get("error_description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        return Err(HarborError::OAuthError(format!(
+            "Token refresh failed: {} {desc}",
+            error.as_str().unwrap_or("unknown"),
+        )));
+    }
+
+    let access_token = body["access_token"]
+        .as_str()
+        .ok_or_else(|| HarborError::OAuthError("No access_token in refresh response".into()))?
+        .to_string();
+
+    let expires_at = body
+        .get("expires_in")
+        .and_then(|v| v.as_i64())
+        .map(|secs| chrono::Utc::now().timestamp() + secs);
+
+    // Store updated tokens
+    let tokens = OAuthTokens {
+        access_token: access_token.clone(),
+        refresh_token: body
+            .get("refresh_token")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .or(Some(refresh_token)),
+        expires_at,
+        token_type: body
+            .get("token_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("bearer")
+            .to_string(),
+        team_id: body
+            .get("team")
+            .and_then(|t| t.get("id"))
+            .and_then(|v| v.as_str())
+            .map(String::from),
+    };
+
+    store_tokens(provider_id, &tokens)?;
+    info!(provider = provider_id, "OAuth access token refreshed");
+
+    Ok(access_token)
 }
 
 // ---------------------------------------------------------------------------
@@ -559,13 +954,17 @@ pub async fn complete_oauth_flow(
     )
     .await?;
 
-    // Store client credentials so credential files can reference them
-    let _ = Vault::set(
-        &format!("oauth:{provider_id}:client_id"),
-        &effective_client_id,
-    );
-    if let Some(ref secret) = effective_client_secret {
-        let _ = Vault::set(&format!("oauth:{provider_id}:client_secret"), secret);
+    // Only store client credentials if they were custom overrides (not compile-time defaults)
+    if custom_client_id.is_some() {
+        let _ = Vault::set(
+            &format!("oauth:{provider_id}:client_id"),
+            &effective_client_id,
+        );
+    }
+    if custom_client_secret.is_some() {
+        if let Some(ref secret) = effective_client_secret {
+            let _ = Vault::set(&format!("oauth:{provider_id}:client_secret"), secret);
+        }
     }
 
     store_tokens(provider_id, &tokens)?;
@@ -591,17 +990,19 @@ pub async fn start_oauth_flow(
         callback_server.redirect_uri()
     };
 
-    // Check for user-overridden client_id
-    let client_id = Vault::get(&format!("oauth:{provider_id}:client_id"))
-        .ok()
-        .or_else(|| provider.default_client_id.clone())
-        .ok_or_else(|| {
-            HarborError::OAuthError(format!(
-                "No client ID configured for {provider_id}. Set one via the vault."
-            ))
-        })?;
-
-    let scope_str = provider.scopes.join(" ");
+    // Obtain client_id: DCR providers always re-register (ephemeral port),
+    // otherwise check vault override → compile-time default.
+    let client_id = if let Some(ref reg_endpoint) = provider.registration_endpoint {
+        dynamic_register(provider_id, reg_endpoint, &redirect_uri).await?
+    } else if let Ok(id) = Vault::get(&format!("oauth:{provider_id}:client_id")) {
+        id
+    } else if let Some(ref default_id) = provider.default_client_id {
+        default_id.clone()
+    } else {
+        return Err(HarborError::OAuthError(format!(
+            "No client ID configured for {provider_id}. Set one via the vault."
+        )));
+    };
 
     let pkce = if provider.supports_pkce {
         Some(generate_pkce())
@@ -610,12 +1011,27 @@ pub async fn start_oauth_flow(
     };
 
     let mut auth_url = format!(
-        "{}?client_id={}&redirect_uri={}&response_type=code&scope={}",
+        "{}?client_id={}&redirect_uri={}&response_type=code",
         provider.auth_url,
         urlencoding::encode(&client_id),
         urlencoding::encode(&redirect_uri),
-        urlencoding::encode(&scope_str),
     );
+
+    // Only include scope parameter when scopes are defined (some providers
+    // like Stripe reject an empty scope= parameter).
+    if !provider.scopes.is_empty() {
+        let scope_param = if provider.uses_user_scope {
+            "user_scope"
+        } else {
+            "scope"
+        };
+        let scope_str = provider.scopes.join(" ");
+        auth_url.push_str(&format!(
+            "&{}={}",
+            scope_param,
+            urlencoding::encode(&scope_str)
+        ));
+    }
 
     if let Some(ref pkce) = pkce {
         auth_url.push_str(&format!(

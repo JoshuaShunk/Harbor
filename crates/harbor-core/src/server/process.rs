@@ -18,9 +18,10 @@ impl ManagedProcess {
         config: &ServerConfig,
         resolved_env: &BTreeMap<String, String>,
     ) -> Result<Self> {
-        info!(server = name, command = %config.command, "Starting MCP server");
+        let command = config.command.as_deref().unwrap_or("unknown");
+        info!(server = name, command = %command, "Starting MCP server");
 
-        let mut cmd = Command::new(&config.command);
+        let mut cmd = Command::new(command);
         cmd.args(&config.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())

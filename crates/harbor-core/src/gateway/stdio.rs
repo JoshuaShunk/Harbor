@@ -83,9 +83,18 @@ impl StdioBridge {
         config: &ServerConfig,
         resolved_env: &BTreeMap<String, String>,
     ) -> Result<Self> {
-        info!(server = name, command = %config.command, "Spawning stdio bridge");
+        let command = config
+            .command
+            .as_deref()
+            .ok_or_else(|| HarborError::ServerStartFailed {
+                name: name.to_string(),
+                reason: "No command specified for stdio bridge (is this a remote server?)"
+                    .to_string(),
+            })?;
 
-        let mut cmd = Command::new(&config.command);
+        info!(server = name, command = %command, "Spawning stdio bridge");
+
+        let mut cmd = Command::new(command);
         cmd.args(&config.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())

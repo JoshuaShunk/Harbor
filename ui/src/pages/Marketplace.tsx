@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { Search, ExternalLink, BadgeCheck, Package, Anchor, ChevronDown, Lock, Check, Ship, Key } from "lucide-react";
+import { Search, ExternalLink, BadgeCheck, Package, Anchor, ChevronDown, Lock, Check, Ship, Key, FolderOpen, X, FileText, Globe } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { marketplaceSearch, oauthGetStatus, addServer, getGdriveCredentialPaths, catalogList, dockNative, getStatus, vaultSet, type MarketplaceServer, type OAuthProviderInfo, type NativeServerInfo } from "../lib/tauri";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
@@ -128,12 +129,14 @@ function NativeFleet() {
   const [natives, setNatives] = useState<NativeServerInfo[]>([]);
   const [dockedNames, setDockedNames] = useState<Set<string>>(new Set());
   const [docking, setDocking] = useState<string | null>(null);
-  const [charterFor, setCharterFor] = useState<{ id: string; providerId: string } | null>(null);
-  const [charterOAuth, setCharterOAuth] = useState<OAuthProviderInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Manual-token key input state: maps server id → current input value
   const [keyInput, setKeyInput] = useState<Record<string, string>>({});
   const [expandedManual, setExpandedManual] = useState<string | null>(null);
+  // Extra args state: which server is expanded, and collected args per server
+  const [expandedArgs, setExpandedArgs] = useState<string | null>(null);
+  const [extraArgsPaths, setExtraArgsPaths] = useState<Record<string, string[]>>({});
+  const [extraArgsText, setExtraArgsText] = useState<Record<string, string>>({});
 
   const reload = useCallback(async () => {
     const [catalog, status] = await Promise.all([catalogList(), getStatus()]);
@@ -144,19 +147,17 @@ function NativeFleet() {
   useEffect(() => { reload(); }, [reload]);
 
   const handleDock = async (native: NativeServerInfo) => {
-    // If OAuth needed and not yet authorized, open charter modal
-    if (native.auth_kind.startsWith("oauth:") && !native.has_auth) {
-      const providerId = native.auth_kind.replace("oauth:", "");
-      const status = await oauthGetStatus(providerId);
-      setCharterOAuth(status);
-      setCharterFor({ id: native.id, providerId });
-      return;
-    }
     // If manual token needed and not yet stored, expand the key input
     if (native.auth_kind === "manual" && !native.has_auth) {
       setExpandedManual(native.id);
       return;
     }
+    // If extra args needed, expand the config panel
+    if (native.extra_args_kind !== "none") {
+      setExpandedArgs(native.id);
+      return;
+    }
+    // For OAuth servers, dockNative handles the OAuth flow inline (opens browser)
     setDocking(native.id);
     setError(null);
     try {
@@ -168,6 +169,63 @@ function NativeFleet() {
     } finally {
       setDocking(null);
     }
+  };
+
+  const handleDockWithArgs = async (native: NativeServerInfo) => {
+    let args: string[] = [];
+    if (native.extra_args_kind === "directories") {
+      args = extraArgsPaths[native.id] ?? [];
+    } else if (native.extra_args_kind === "file") {
+      args = extraArgsPaths[native.id] ?? [];
+    } else if (native.extra_args_kind === "text") {
+      const val = extraArgsText[native.id]?.trim();
+      if (val) args = [val];
+    }
+    setDocking(native.id);
+    setError(null);
+    try {
+      await dockNative(native.id, undefined, args.length > 0 ? args : undefined);
+      setExpandedArgs(null);
+      setExtraArgsPaths((prev) => ({ ...prev, [native.id]: [] }));
+      setExtraArgsText((prev) => ({ ...prev, [native.id]: "" }));
+      await reload();
+    } catch (e) {
+      setError(String(e));
+      setTimeout(() => setError(null), 4000);
+    } finally {
+      setDocking(null);
+    }
+  };
+
+  const handlePickFolder = async (serverId: string) => {
+    const selected = await open({ directory: true, multiple: true });
+    if (selected) {
+      const paths = Array.isArray(selected) ? selected : [selected];
+      setExtraArgsPaths((prev) => ({
+        ...prev,
+        [serverId]: [...(prev[serverId] ?? []), ...paths],
+      }));
+    }
+  };
+
+  const handlePickFile = async (serverId: string) => {
+    const selected = await open({ directory: false, multiple: false });
+    if (selected) {
+      const path = Array.isArray(selected) ? selected[0] : selected;
+      if (path) {
+        setExtraArgsPaths((prev) => ({
+          ...prev,
+          [serverId]: [path],
+        }));
+      }
+    }
+  };
+
+  const removeExtraArgsPath = (serverId: string, index: number) => {
+    setExtraArgsPaths((prev) => ({
+      ...prev,
+      [serverId]: (prev[serverId] ?? []).filter((_, i) => i !== index),
+    }));
   };
 
   const handleManualKeySubmit = async (native: NativeServerInfo) => {
@@ -183,23 +241,6 @@ function NativeFleet() {
       await dockNative(native.id);
       setExpandedManual(null);
       setKeyInput((prev) => ({ ...prev, [native.id]: "" }));
-      await reload();
-    } catch (e) {
-      setError(String(e));
-      setTimeout(() => setError(null), 4000);
-    } finally {
-      setDocking(null);
-    }
-  };
-
-  const handleCharterComplete = async () => {
-    if (!charterFor) return;
-    setCharterFor(null);
-    setCharterOAuth(null);
-    // Re-check auth status then dock
-    setDocking(charterFor.id);
-    try {
-      await dockNative(charterFor.id);
       await reload();
     } catch (e) {
       setError(String(e));
@@ -227,11 +268,10 @@ function NativeFleet() {
         {natives.map((n) => {
           const isDocked = dockedNames.has(n.id);
           const isDocking = docking === n.id;
-          const isOAuth = n.auth_kind.startsWith("oauth:");
           const isManual = n.auth_kind === "manual";
-          const needsOAuth = isOAuth && !n.has_auth;
           const needsManual = isManual && !n.has_auth;
           const isExpanded = expandedManual === n.id;
+          const isComingSoon = n.id === "figma";
 
           return (
             <div
@@ -246,10 +286,10 @@ function NativeFleet() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[13px] font-medium text-text-primary">{n.display_name}</span>
-                    {isOAuth && (
-                      <StatusBadge status={n.has_auth ? "chartered" : "unchartered"} />
+                    {n.is_remote && (
+                      <Globe className="w-3 h-3 text-accent" />
                     )}
-                    {isManual && (
+                    {isManual && !n.is_remote && (
                       <Lock className="w-3 h-3 text-text-muted" />
                     )}
                   </div>
@@ -261,18 +301,14 @@ function NativeFleet() {
                       <Check className="w-3 h-3" />
                       Docked
                     </span>
+                  ) : isComingSoon ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-text-muted bg-bg-active">
+                      Coming Soon
+                    </span>
                   ) : isDocking ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-text-muted bg-bg-active">
                       Docking...
                     </span>
-                  ) : needsOAuth ? (
-                    <button
-                      onClick={() => handleDock(n)}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border border-accent/40 text-accent hover:bg-accent-muted transition-colors duration-150"
-                    >
-                      <Anchor className="w-3 h-3" />
-                      Charter
-                    </button>
                   ) : needsManual ? (
                     <button
                       onClick={() => handleDock(n)}
@@ -317,6 +353,91 @@ function NativeFleet() {
                   </p>
                 </div>
               )}
+              {/* Inline extra args config (directories, file, text) */}
+              {expandedArgs === n.id && (
+                <div className="mt-2 pt-2 border-t border-border-subtle animate-fade-in">
+                  <div className="text-[12px] font-medium text-text-primary mb-1.5">
+                    {n.extra_args_label}
+                  </div>
+                  {n.extra_args_kind === "directories" && (
+                    <div className="space-y-1.5">
+                      {(extraArgsPaths[n.id] ?? []).map((path, i) => (
+                        <div key={path} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-bg-app border border-border-default text-[12px] font-mono text-text-primary">
+                          <FolderOpen className="w-3 h-3 text-text-muted shrink-0" />
+                          <span className="flex-1 truncate">{path}</span>
+                          <button
+                            onClick={() => removeExtraArgsPath(n.id, i)}
+                            className="text-text-muted hover:text-red transition-colors shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => handlePickFolder(n.id)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors duration-150"
+                      >
+                        <FolderOpen className="w-3 h-3" />
+                        Add Folder
+                      </button>
+                      {(extraArgsPaths[n.id] ?? []).length === 0 && (
+                        <p className="text-[11px] text-yellow">
+                          No folders selected — the server won't have access to any files.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {n.extra_args_kind === "file" && (
+                    <div className="space-y-1.5">
+                      {(extraArgsPaths[n.id] ?? []).length > 0 ? (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-bg-app border border-border-default text-[12px] font-mono text-text-primary">
+                          <FileText className="w-3 h-3 text-text-muted shrink-0" />
+                          <span className="flex-1 truncate">{extraArgsPaths[n.id][0]}</span>
+                          <button
+                            onClick={() => removeExtraArgsPath(n.id, 0)}
+                            className="text-text-muted hover:text-red transition-colors shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handlePickFile(n.id)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors duration-150"
+                        >
+                          <FileText className="w-3 h-3" />
+                          Choose File
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {n.extra_args_kind === "text" && (
+                    <input
+                      placeholder={n.extra_args_placeholder ?? ""}
+                      value={extraArgsText[n.id] ?? ""}
+                      onChange={(e) => setExtraArgsText((prev) => ({ ...prev, [n.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleDockWithArgs(n); }}
+                      className="w-full px-2.5 py-1.5 rounded-md text-[12px] font-mono bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors duration-150"
+                    />
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => handleDockWithArgs(n)}
+                      disabled={isDocking}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                    >
+                      <Anchor className="w-3 h-3" />
+                      {isDocking ? "Docking..." : "Dock"}
+                    </button>
+                    <button
+                      onClick={() => setExpandedArgs(null)}
+                      className="px-2.5 py-1.5 rounded-md text-[11px] font-medium text-text-muted hover:text-text-secondary transition-colors duration-150"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -328,21 +449,6 @@ function NativeFleet() {
         <span className="text-[11px] text-text-muted">or search the registry</span>
         <div className="flex-1 h-px bg-border-subtle" />
       </div>
-
-      {/* Charter modal */}
-      {charterFor && charterOAuth && (
-        <OAuthCharterModal
-          provider={charterOAuth}
-          serverName={charterFor.id}
-          serverRegistryName={charterFor.id}
-          onComplete={handleCharterComplete}
-          onClose={() => {
-            setCharterFor(null);
-            setCharterOAuth(null);
-            reload();
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -453,7 +559,7 @@ function ServerResult({ server, searchGen }: { server: MarketplaceServer; search
         env = { [envVar]: `vault:oauth:${providerId}:access_token` };
       }
 
-      await addServer(name, "npx", ["-y", pkg], env);
+      await addServer(name, "npx", ["-y", pkg], env, null, null, `registry:${server.name}`);
       setDockMsg("Ship docked!");
       setTimeout(() => setDockMsg(null), 3000);
     } catch (e) {
@@ -483,7 +589,7 @@ function ServerResult({ server, searchGen }: { server: MarketplaceServer; search
       const env: Record<string, string> = {};
       envPairs.forEach(([k, v]) => { if (v) env[k] = v; });
 
-      await addServer(name, command, args, env);
+      await addServer(name, command, args, env, null, null, `registry:${server.name}`);
       setDockMsg("Ship docked!");
       setShowEnvForm(false);
       setTimeout(() => setDockMsg(null), 3000);

@@ -12,6 +12,6 @@ pub mod updater;
 // Re-exports for convenience
 pub use auth::oauth::{OAuthProvider, OAuthTokens};
 pub use auth::vault::Vault;
-pub use catalog::{AuthKind, NativeServer};
+pub use catalog::{AuthKind, ExtraArgs, NativeServer};
 pub use config::{HarborConfig, HostConfig, ServerConfig};
 pub use error::{HarborError, Result};

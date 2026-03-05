@@ -1,25 +1,58 @@
 ---
 title: "Scout (Marketplace)"
 sidebarTitle: "Marketplace"
-description: "Discover and install MCP servers from the official MCP Registry."
+description: "Discover and install MCP servers from the Native Fleet or the MCP Registry."
 ---
 
-The **Scout** page connects you to the official [MCP Registry](https://registry.modelcontextprotocol.io), where you can discover and install MCP servers without leaving Harbor.
+The **Scout** page is your one-stop shop for adding MCP servers. It features the **Native Fleet** of curated one-click servers and a search bar for the broader [MCP Registry](https://registry.modelcontextprotocol.io).
 
-## Searching for Servers
+## Native Fleet
 
-Use the search bar to find servers by name, description, or category. Results show:
+The Native Fleet is a curated grid of pre-configured MCP servers that ship with Harbor. Each server has built-in authentication and sensible defaults — just click to dock.
+
+### Server Types
+
+| Type | How it works |
+|------|-------------|
+| **OAuth** (e.g., Slack, Atlassian, Linear) | Click **Charter** to open your browser and authorize. Harbor stores tokens securely in the vault. |
+| **API Key** (e.g., GitHub, Brave Search) | Click **Add Key**, paste your API key, and click **Save & Dock**. The key is stored in your OS keychain. |
+| **No auth** (e.g., Filesystem, Playwright) | Click **Dock** and you're done. Some servers accept extra arguments (e.g., allowed directories). |
+
+### Available Native Servers
+
+| Server | Auth | Description |
+|--------|------|-------------|
+| GitHub | API Key (PAT) | GitHub API — repos, issues, PRs, code search |
+| Atlassian | OAuth | Jira, Confluence & Compass |
+| Slack | OAuth | Channels, messages, users |
+| Linear | OAuth | Issues, projects, cycles |
+| Notion | OAuth | Pages, databases, docs |
+| Sentry | OAuth | Errors, issues, performance |
+| Figma | OAuth | Design inspection, Dev Mode |
+| Stripe | OAuth | Payments, customers, subscriptions |
+| Vercel | OAuth | Deployments, projects, domains |
+| Supabase | OAuth | Database, auth, storage |
+| Cloudflare | OAuth | Workers, D1, R2, KV |
+| Neon | OAuth | Serverless Postgres |
+| Filesystem | None | Local file read/write (pass allowed directories) |
+| Playwright | None | Browser automation |
+| Google Workspace | OAuth | Drive, Gmail, Calendar, Sheets, Docs |
+| Brave Search | API Key | Web and local search |
+
+## Registry Search
+
+Use the search bar to find community servers from the MCP Registry. Results show:
 
 - **Server name** and description
-- **Runtime** (npm, pip, etc.)
+- **Runtime** (npx, uvx, etc.)
 - **Badges** for official or certified servers
 
-## Installing a Server
+### Installing from the Registry
 
-1. Find the server you want
-2. Click **Install**
+1. Search for the server you want
+2. Click **Dock Ship**
 3. Configure any required environment variables (e.g., API keys)
-4. The server is automatically docked into your fleet
+4. The server is automatically docked into your fleet and synced to linked hosts
 
 <Tip>
 For servers that need API keys, you can store them in the [secret vault](/guides/vault) and reference them as `vault:SECRET_NAME` in the environment variables.
@@ -27,4 +60,11 @@ For servers that need API keys, you can store them in the [secret vault](/guides
 
 ## OAuth Servers
 
-Some servers (like GitHub, Google, Slack) support OAuth authentication. Harbor handles the OAuth flow for you — click the OAuth button to authorize, and Harbor stores the tokens securely.
+Some servers require OAuth authentication. Harbor handles the full flow for you:
+
+1. Click **Charter** on the server
+2. Your browser opens to the provider's authorization page
+3. Authorize Harbor and the browser redirects back
+4. Tokens are stored securely in the vault and the server is docked
+
+See the [OAuth guide](/guides/oauth) for more details.

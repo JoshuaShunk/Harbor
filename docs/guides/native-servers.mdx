@@ -1,0 +1,121 @@
+---
+title: "Native Servers"
+sidebarTitle: "Native Servers"
+description: "Pre-configured MCP servers you can dock with a single command."
+---
+
+Harbor ships with a curated catalog of native MCP servers — pre-configured with the right commands, arguments, and authentication. Dock them with a single command or click.
+
+## CLI Usage
+
+```sh
+harbor dock <server-id>
+```
+
+**Examples:**
+
+```sh
+harbor dock github                         # GitHub API (needs PAT)
+harbor dock slack                          # Slack (opens browser for OAuth)
+harbor dock filesystem -- ~/Documents      # Filesystem with allowed dirs
+harbor dock atlassian --name my-jira       # Custom name
+harbor dock google-workspace -- all        # Google Workspace with all services
+```
+
+## Desktop Usage
+
+Open the **Scout** page and browse the **Native Fleet** grid. Click **Dock**, **Charter** (OAuth), or **Add Key** (API key) depending on the server.
+
+## Catalog
+
+### Remote Servers (HTTP)
+
+These connect to vendor-hosted MCP endpoints over HTTP. No local process is spawned.
+
+| Server | ID | Auth | Description |
+|--------|----|------|-------------|
+| GitHub | `github` | API Key (PAT) | Repos, issues, PRs, code search |
+| Atlassian | `atlassian` | OAuth | Jira, Confluence & Compass |
+| Slack | `slack` | OAuth | Channels, messages, users |
+| Linear | `linear` | OAuth | Issues, projects, cycles |
+| Notion | `notion` | OAuth | Pages, databases, docs |
+| Sentry | `sentry` | OAuth | Errors, issues, performance |
+| Figma | `figma` | OAuth | Design inspection, Dev Mode |
+| Stripe | `stripe` | OAuth | Payments, customers, subscriptions |
+| Vercel | `vercel` | OAuth | Deployments, projects, domains |
+| Supabase | `supabase` | OAuth | Database, auth, storage |
+| Cloudflare | `cloudflare` | OAuth | Workers, D1, R2, KV |
+| Neon | `neon` | OAuth | Serverless Postgres |
+
+### Local Servers (stdio)
+
+These run as local processes on your machine.
+
+| Server | ID | Auth | Description |
+|--------|----|------|-------------|
+| Filesystem | `filesystem` | None | Local file read/write (pass allowed directories after `--`) |
+| Playwright | `playwright` | None | Browser automation |
+| Google Workspace | `google-workspace` | OAuth | Drive, Gmail, Calendar, Sheets, Docs (pass services after `--`) |
+| Brave Search | `brave-search` | API Key | Web and local search |
+
+## Authentication
+
+### OAuth servers
+
+When you dock an OAuth server for the first time, Harbor opens your browser to authorize. Tokens are stored securely in the vault and refreshed automatically.
+
+```sh
+harbor dock slack
+# => Opens browser for OAuth authorization
+# => Papers received! Server 'slack' docked.
+```
+
+Use `--skip-auth` to dock now and authorize later:
+
+```sh
+harbor dock slack --skip-auth
+```
+
+### API Key servers
+
+Servers that need a manual token require you to store the key in the vault first:
+
+```sh
+harbor chest set github_personal_access_token ghp_xxxxxxxxxxxx
+harbor dock github
+```
+
+### No-auth servers
+
+These work out of the box:
+
+```sh
+harbor dock filesystem -- ~/Documents ~/Projects
+harbor dock playwright
+```
+
+## Extra Arguments
+
+Some servers accept extra arguments appended after the defaults. Use `--` to separate them:
+
+```sh
+# Filesystem: allowed directories
+harbor dock filesystem -- ~/Documents ~/Projects /tmp
+
+# Google Workspace: service list
+harbor dock google-workspace -- drive,gmail,calendar
+
+# Custom name with extra args
+harbor dock filesystem --name work-files -- ~/Work
+```
+
+## CLI Flags
+
+| Flag | Description |
+|------|-------------|
+| `--name` | Override the default server name (defaults to the catalog id) |
+| `--skip-auth` | Skip OAuth authorization during dock |
+| `--disabled` | Dock the server but keep it disabled |
+| `--auto-start` | Start automatically when Harbor launches |
+| `--env KEY=VALUE` | Override or add environment variables |
+| `-- <args>` | Extra arguments appended after catalog defaults |

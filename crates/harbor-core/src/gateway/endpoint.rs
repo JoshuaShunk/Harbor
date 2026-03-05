@@ -1,15 +1,19 @@
+use crate::auth::vault::Vault;
 use crate::config::HarborConfig;
 use crate::error::Result;
 use crate::gateway::bridge::{BridgeManager, ToolInfo};
 use crate::gateway::stdio::{JsonRpcRequest, JsonRpcResponse};
-use axum::extract::{Query, State};
+use axum::extract::{ConnectInfo, Query, Request, State};
 use axum::http::StatusCode;
+use axum::middleware::{self, Next};
 use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::CorsLayer;
 use tracing::{error, info, warn};
 
@@ -19,6 +23,9 @@ pub struct GatewayState {
     pub config: Mutex<HarborConfig>,
     /// Broadcast channel for SSE events (tools_changed, etc.)
     pub events_tx: tokio::sync::broadcast::Sender<GatewayEvent>,
+    /// Resolved bearer token for auth (None = no auth required).
+    /// Behind RwLock so it can be hot-swapped without restarting the gateway.
+    pub token: RwLock<Option<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -30,6 +37,7 @@ pub enum GatewayEvent {
 
 /// The Harbor Gateway — an HTTP server that bridges MCP clients to stdio servers.
 pub struct Gateway {
+    host: String,
     port: u16,
     state: Arc<GatewayState>,
 }
@@ -37,14 +45,27 @@ pub struct Gateway {
 impl Gateway {
     /// Create a new gateway from Harbor config.
     pub fn new(config: HarborConfig) -> Self {
+        let host = config.harbor.gateway_host.clone();
         let port = config.harbor.gateway_port;
+
+        // Resolve vault: references in the token
+        let token = config.harbor.gateway_token.as_ref().map(|t| {
+            if let Some(key) = t.strip_prefix("vault:") {
+                Vault::get(key).unwrap_or_else(|_| t.clone())
+            } else {
+                t.clone()
+            }
+        });
+
         let (events_tx, _) = tokio::sync::broadcast::channel(16);
         Self {
+            host,
             port,
             state: Arc::new(GatewayState {
                 bridge_manager: BridgeManager::new(),
                 config: Mutex::new(config),
                 events_tx,
+                token: RwLock::new(token),
             }),
         }
     }
@@ -54,18 +75,36 @@ impl Gateway {
     /// The `shutdown_rx` oneshot is used to trigger graceful shutdown.
     /// Drop the corresponding `Sender` or send `()` to stop the gateway.
     pub async fn run(self, shutdown_rx: tokio::sync::oneshot::Receiver<()>) -> Result<()> {
-        let app = Router::new()
-            .route("/health", get(health))
+        // Health is always accessible (no auth)
+        let health_router = Router::new().route("/health", get(health));
+
+        // Protected routes (auth required if token is set)
+        let protected = Router::new()
             .route("/tools", get(list_tools))
             .route("/servers", get(list_servers))
             .route("/mcp", post(handle_mcp_request))
             .route("/reload", post(handle_reload))
             .route("/sse", get(handle_sse))
+            .route_layer(middleware::from_fn_with_state(
+                self.state.clone(),
+                auth_middleware,
+            ));
+
+        let app = health_router
+            .merge(protected)
             .layer(CorsLayer::permissive())
             .with_state(self.state.clone());
 
-        let addr = format!("127.0.0.1:{}", self.port);
+        let addr = format!("{}:{}", self.host, self.port);
         info!(addr = %addr, "Harbor Gateway starting");
+
+        if self.host == "0.0.0.0" {
+            if self.state.token.read().await.is_some() {
+                info!("Gateway exposed to network (bearer token required)");
+            } else {
+                warn!("Gateway exposed to network WITHOUT authentication — consider setting gateway_token");
+            }
+        }
 
         let listener = tokio::net::TcpListener::bind(&addr).await.map_err(|e| {
             crate::error::HarborError::ServerStartFailed {
@@ -106,22 +145,60 @@ impl Gateway {
 
         // Graceful shutdown when the oneshot fires
         let state = self.state.clone();
-        axum::serve(listener, app)
-            .with_graceful_shutdown(async move {
-                let _ = shutdown_rx.await;
-                info!("Shutting down gateway...");
-                if let Err(e) = state.bridge_manager.stop_all().await {
-                    error!(error = %e, "Error stopping servers during shutdown");
-                }
-            })
-            .await
-            .map_err(|e| crate::error::HarborError::ServerStartFailed {
-                name: "gateway".to_string(),
-                reason: format!("Gateway server error: {e}"),
-            })?;
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async move {
+            let _ = shutdown_rx.await;
+            info!("Shutting down gateway...");
+            if let Err(e) = state.bridge_manager.stop_all().await {
+                error!(error = %e, "Error stopping servers during shutdown");
+            }
+        })
+        .await
+        .map_err(|e| crate::error::HarborError::ServerStartFailed {
+            name: "gateway".to_string(),
+            reason: format!("Gateway server error: {e}"),
+        })?;
 
         Ok(())
     }
+}
+
+// --- Auth Middleware ---
+
+async fn auth_middleware(
+    State(state): State<Arc<GatewayState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    request: Request,
+    next: Next,
+) -> std::result::Result<Response, StatusCode> {
+    // Localhost connections are always trusted — no auth needed
+    let is_local = addr.ip().is_loopback();
+
+    if !is_local {
+        let token_guard = state.token.read().await;
+        if let Some(ref expected_token) = *token_guard {
+            let auth_header = request
+                .headers()
+                .get("authorization")
+                .and_then(|v| v.to_str().ok());
+
+            match auth_header {
+                Some(header) if header.starts_with("Bearer ") => {
+                    let provided = &header[7..];
+                    if provided != expected_token.as_str() {
+                        return Err(StatusCode::UNAUTHORIZED);
+                    }
+                }
+                _ => return Err(StatusCode::UNAUTHORIZED),
+            }
+        }
+        drop(token_guard);
+    }
+
+    Ok(next.run(request).await)
 }
 
 // --- HTTP Handlers ---
@@ -323,6 +400,16 @@ async fn handle_reload(
         error!(error = %e, "Failed to reload config");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
+
+    // Hot-swap the bearer token (no restart needed)
+    let new_token = config.harbor.gateway_token.as_ref().map(|t| {
+        if let Some(key) = t.strip_prefix("vault:") {
+            Vault::get(key).unwrap_or_else(|_| t.clone())
+        } else {
+            t.clone()
+        }
+    });
+    *state.token.write().await = new_token;
 
     // Update the gateway's config
     *state.config.lock().await = config.clone();

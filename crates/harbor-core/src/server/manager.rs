@@ -99,7 +99,15 @@ impl ServerManager {
             enabled: config.enabled,
             running,
             pid,
-            command: format!("{} {}", config.command, config.args.join(" ")),
+            command: if let Some(ref url) = config.url {
+                format!("(remote) {url}")
+            } else {
+                format!(
+                    "{} {}",
+                    config.command.as_deref().unwrap_or(""),
+                    config.args.join(" ")
+                )
+            },
         }
     }
 
@@ -144,9 +152,11 @@ mod tests {
     fn make_server_config(command: &str, enabled: bool) -> ServerConfig {
         ServerConfig {
             source: None,
-            command: command.to_string(),
+            command: Some(command.to_string()),
             args: vec![],
             env: BTreeMap::new(),
+            url: None,
+            headers: None,
             enabled,
             auto_start: false,
             hosts: BTreeMap::new(),
@@ -251,9 +261,11 @@ mod tests {
         let mut manager = ServerManager::new();
         let config = ServerConfig {
             source: None,
-            command: "npx".to_string(),
+            command: Some("npx".to_string()),
             args: vec!["-y".to_string(), "@mcp/server".to_string()],
             env: BTreeMap::new(),
+            url: None,
+            headers: None,
             enabled: true,
             auto_start: false,
             hosts: BTreeMap::new(),

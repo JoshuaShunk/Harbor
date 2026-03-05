@@ -12,20 +12,23 @@ Harbor's desktop app is built with [Tauri v2](https://v2.tauri.app/) and gives y
 
 ## Pages
 
-The app is organized into four main sections, accessible from the sidebar:
+The app is organized into five main sections, accessible from the sidebar:
 
 <CardGroup cols={2}>
   <Card title="Fleet" icon="ship" href="/desktop/servers">
-    Manage your docked MCP servers — add, remove, enable, or disable them.
+    Manage your docked MCP servers — add, remove, enable/disable, configure tool filters, and edit arguments.
   </Card>
   <Card title="Ports" icon="plug" href="/desktop/hosts">
-    Connect to hosts like Claude Code, VS Code, and Cursor, then sync your fleet.
+    Connect to hosts like Claude Code, Claude Desktop, VS Code, Codex, and Cursor, then sync your fleet.
   </Card>
   <Card title="Scout" icon="magnifying-glass" href="/desktop/marketplace">
-    Search and install MCP servers from the official MCP Registry.
+    Browse the Native Fleet of one-click servers, or search the MCP Registry for community servers.
+  </Card>
+  <Card title="Lighthouse" icon="tower-broadcast" href="/desktop/lighthouse">
+    Start and monitor the HTTP/SSE gateway, configure network access and authentication.
   </Card>
   <Card title="Helm" icon="gear" href="/desktop/settings">
-    Configure the gateway, manage secrets, adjust themes, and check for updates.
+    Manage secrets, OAuth providers, themes, and updates.
   </Card>
 </CardGroup>
 

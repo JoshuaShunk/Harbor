@@ -1,41 +1,72 @@
-import { useEffect, useState } from "react";
-import { Trash2, Shield, FolderCog, Info, RefreshCw, ArrowDownCircle, CheckCircle2, AlertCircle, Loader2, Anchor, ChevronDown, ChevronUp, Sun, Moon, Monitor } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Trash2, Shield, FolderCog, Info, RefreshCw, ArrowDownCircle, CheckCircle2, AlertCircle, Loader2, Anchor, ChevronDown, ChevronUp, Sun, Moon, Monitor, Settings2 } from "lucide-react";
 import { vaultSet, vaultDelete, vaultList, oauthListProviders, oauthRevokeCharter, oauthSetCustomCredentials, oauthStartCharter, type OAuthProviderInfo } from "../lib/tauri";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
 import { useUpdate } from "../contexts/UpdateContext";
 import { useTheme, type ThemeChoice } from "../contexts/ThemeContext";
+import { SiGithub, SiAtlassian, SiLinear, SiNotion, SiSentry, SiStripe } from "react-icons/si";
 
 const PROVIDER_META: Record<string, { icon: React.ReactNode; description: string }> = {
   github: {
-    icon: (
-      <svg className="w-5 h-5 text-text-primary" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-      </svg>
-    ),
+    icon: <SiGithub className="w-5 h-5 text-text-primary" />,
     description: "Repos, issues, pull requests, and code search",
   },
   google: {
     icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24">
-        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+      <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none">
+        <g fillRule="evenodd" clipRule="evenodd">
+          <path fill="#F44336" d="M7.209 1.061c.725-.081 1.154-.081 1.933 0a6.57 6.57 0 0 1 3.65 1.82a100 100 0 0 0-1.986 1.93q-1.876-1.59-4.188-.734q-1.696.78-2.362 2.528a78 78 0 0 1-2.148-1.658a.26.26 0 0 0-.16-.027q1.683-3.245 5.26-3.86" opacity=".987"/>
+          <path fill="#FFC107" d="M1.946 4.92q.085-.013.161.027a78 78 0 0 0 2.148 1.658A7.6 7.6 0 0 0 4.04 7.99q.037.678.215 1.331L2 11.116Q.527 8.038 1.946 4.92" opacity=".997"/>
+          <path fill="#448AFF" d="M12.685 13.29a26 26 0 0 0-2.202-1.74q1.15-.812 1.396-2.228H8.122V6.713q3.25-.027 6.497.055q.616 3.345-1.423 6.032a7 7 0 0 1-.51.49" opacity=".999"/>
+          <path fill="#43A047" d="M4.255 9.322q1.23 3.057 4.51 2.854a3.94 3.94 0 0 0 1.718-.626q1.148.812 2.202 1.74a6.62 6.62 0 0 1-4.027 1.684a6.4 6.4 0 0 1-1.02 0Q3.82 14.524 2 11.116z" opacity=".993"/>
+        </g>
       </svg>
     ),
     description: "Drive, Docs, Gmail, and Calendar access",
   },
   slack: {
     icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24">
-        <path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313z" fill="#E01E5A" />
-        <path d="M8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312z" fill="#36C5F0" />
-        <path d="M18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zm-1.271 0a2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.521-2.521V2.522A2.528 2.528 0 0115.164 0a2.528 2.528 0 012.521 2.522v6.312z" fill="#2EB67D" />
-        <path d="M15.164 18.956a2.528 2.528 0 012.521 2.522A2.528 2.528 0 0115.164 24a2.528 2.528 0 01-2.521-2.522v-2.522h2.521zm0-1.271a2.528 2.528 0 01-2.521-2.521 2.528 2.528 0 012.521-2.521h6.314A2.528 2.528 0 0124 15.164a2.528 2.528 0 01-2.522 2.521h-6.314z" fill="#ECB22E" />
+      <svg className="w-5 h-5" viewBox="0 0 128 128">
+        <path fill="#de1c59" d="M27.255 80.719c0 7.33-5.978 13.317-13.309 13.317C6.616 94.036.63 88.049.63 80.719s5.987-13.317 13.317-13.317h13.309zm6.709 0c0-7.33 5.987-13.317 13.317-13.317s13.317 5.986 13.317 13.317v33.335c0 7.33-5.986 13.317-13.317 13.317c-7.33 0-13.317-5.987-13.317-13.317zm0 0"/>
+        <path fill="#35c5f0" d="M47.281 27.255c-7.33 0-13.317-5.978-13.317-13.309C33.964 6.616 39.951.63 47.281.63s13.317 5.987 13.317 13.317v13.309zm0 6.709c7.33 0 13.317 5.987 13.317 13.317s-5.986 13.317-13.317 13.317H13.946C6.616 60.598.63 54.612.63 47.281c0-7.33 5.987-13.317 13.317-13.317zm0 0"/>
+        <path fill="#2eb57d" d="M100.745 47.281c0-7.33 5.978-13.317 13.309-13.317c7.33 0 13.317 5.987 13.317 13.317s-5.987 13.317-13.317 13.317h-13.309zm-6.709 0c0 7.33-5.987 13.317-13.317 13.317s-13.317-5.986-13.317-13.317V13.946C67.402 6.616 73.388.63 80.719.63c7.33 0 13.317 5.987 13.317 13.317zm0 0"/>
+        <path fill="#ebb02e" d="M80.719 100.745c7.33 0 13.317 5.978 13.317 13.309c0 7.33-5.987 13.317-13.317 13.317s-13.317-5.987-13.317-13.317v-13.309zm0-6.709c-7.33 0-13.317-5.987-13.317-13.317s5.986-13.317 13.317-13.317h33.335c7.33 0 13.317 5.986 13.317 13.317c0 7.33-5.987 13.317-13.317 13.317zm0 0"/>
       </svg>
     ),
     description: "Channels, messages, and workspace access",
+  },
+  atlassian: {
+    icon: <SiAtlassian className="w-5 h-5" color="#0052CC" />,
+    description: "Jira, Confluence & Compass — issues, pages, search",
+  },
+  linear: {
+    icon: <SiLinear className="w-5 h-5" color="#5E6AD2" />,
+    description: "Issues, projects, cycles, and comments",
+  },
+  notion: {
+    icon: <SiNotion className="w-5 h-5 text-text-primary" />,
+    description: "Pages, databases, docs, and tasks",
+  },
+  sentry: {
+    icon: <SiSentry className="w-5 h-5" color="#362D59" />,
+    description: "Errors, issues, and performance monitoring",
+  },
+  figma: {
+    icon: (
+      <svg className="w-5 h-5" viewBox="0 0 256 384">
+        <path fill="#0ACF83" d="M64 384c35.328 0 64-28.672 64-64v-64H64c-35.328 0-64 28.672-64 64s28.672 64 64 64Z"/>
+        <path fill="#A259FF" d="M0 192c0-35.328 28.672-64 64-64h64v128H64c-35.328 0-64-28.672-64-64Z"/>
+        <path fill="#F24E1E" d="M0 64C0 28.672 28.672 0 64 0h64v128H64C28.672 128 0 99.328 0 64Z"/>
+        <path fill="#FF7262" d="M128 0h64c35.328 0 64 28.672 64 64s-28.672 64-64 64h-64V0Z"/>
+        <path fill="#1ABCFE" d="M256 192c0 35.328-28.672 64-64 64s-64-28.672-64-64s28.672-64 64-64s64 28.672 64 64Z"/>
+      </svg>
+    ),
+    description: "Design inspection, Dev Mode, and components",
+  },
+  stripe: {
+    icon: <SiStripe className="w-5 h-5" color="#635BFF" />,
+    description: "Payments, customers, subscriptions, and webhooks",
   },
 };
 
@@ -76,6 +107,7 @@ function AppearanceSection() {
 
 function Settings() {
   const [vaultKeys, setVaultKeys] = useState<string[]>([]);
+  const [showVaultKeys, setShowVaultKeys] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
   const [vaultMsg, setVaultMsg] = useState<{ text: string; isError: boolean } | null>(null);
@@ -83,6 +115,20 @@ function Settings() {
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [customClientId, setCustomClientId] = useState("");
   const [customSecret, setCustomSecret] = useState("");
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+    if (openMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [openMenu]);
 
   const {
     status: updateStatus,
@@ -360,21 +406,29 @@ function Settings() {
 
           {/* Stored keys */}
           {vaultKeys.length > 0 ? (
-            <div className="space-y-1">
-              {vaultKeys.map((key) => (
-                <div key={key} className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-bg-app group">
-                  <span className="font-mono text-[12px] text-text-primary">{key}</span>
-                  <button
-                    onClick={() => handleVaultDelete(key)}
-                    className="p-1 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-red hover:bg-red-muted transition-all duration-150"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-              <div className="text-[11px] text-text-muted mt-2 pt-2 border-t border-border-subtle">
+            <div>
+              <button
+                onClick={() => setShowVaultKeys(!showVaultKeys)}
+                className="flex items-center gap-1.5 text-[12px] text-text-muted hover:text-text-secondary transition-colors duration-150"
+              >
+                {showVaultKeys ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 {vaultKeys.length} secret{vaultKeys.length !== 1 ? "s" : ""} stowed
-              </div>
+              </button>
+              {showVaultKeys && (
+                <div className="space-y-1 mt-2 animate-fade-in">
+                  {vaultKeys.map((key) => (
+                    <div key={key} className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-bg-app group">
+                      <span className="font-mono text-[12px] text-text-primary">{key}</span>
+                      <button
+                        onClick={() => handleVaultDelete(key)}
+                        className="p-1 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-red hover:bg-red-muted transition-all duration-150"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-[12px] text-text-muted">
@@ -422,35 +476,50 @@ function Settings() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {!p.has_token && (
-                          <button
-                            onClick={() => handleCharter(p.id)}
-                            disabled={chartering === p.id}
-                            className="px-2.5 py-1 rounded-md text-[12px] font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-40 transition-colors duration-150"
-                          >
-                            {chartering === p.id ? "Chartering..." : "Charter"}
-                          </button>
-                        )}
-                        {p.has_token && (
-                          <button
-                            onClick={() => handleRevoke(p.id)}
-                            className="px-2.5 py-1 rounded-md text-[12px] border border-red/30 text-red hover:bg-red-muted transition-colors duration-150"
-                          >
-                            Revoke
-                          </button>
-                        )}
+                      <div className="relative" ref={openMenu === p.id ? menuRef : undefined}>
                         <button
-                          onClick={() => {
-                            setExpandedProvider(isExpanded ? null : p.id);
-                            setCustomClientId("");
-                            setCustomSecret("");
-                          }}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[12px] text-text-muted hover:text-text-secondary border border-border-default hover:border-border-hover transition-colors duration-150"
+                          onClick={() => setOpenMenu(openMenu === p.id ? null : p.id)}
+                          className="p-1.5 rounded-md text-text-muted hover:text-text-secondary hover:bg-bg-hover transition-colors duration-150"
                         >
-                          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                          Own Papers
+                          <Settings2 className="w-4 h-4" />
                         </button>
+                        {openMenu === p.id && (
+                          <div className="absolute right-0 top-full mt-1 w-48 rounded-lg bg-bg-element border border-border-subtle shadow-lg z-10 py-1 animate-fade-in">
+                            <button
+                              onClick={() => {
+                                setOpenMenu(null);
+                                handleCharter(p.id);
+                              }}
+                              disabled={chartering === p.id}
+                              className="w-full text-left px-3 py-2 text-[12px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors duration-150 disabled:opacity-40"
+                            >
+                              {chartering === p.id ? "Chartering..." : p.has_token ? "Re-charter" : "Charter"}
+                            </button>
+                            {p.has_token && (
+                              <button
+                                onClick={() => {
+                                  setOpenMenu(null);
+                                  handleRevoke(p.id);
+                                }}
+                                className="w-full text-left px-3 py-2 text-[12px] text-red hover:bg-red-muted transition-colors duration-150"
+                              >
+                                Revoke
+                              </button>
+                            )}
+                            <div className="h-px bg-border-subtle my-1" />
+                            <button
+                              onClick={() => {
+                                setOpenMenu(null);
+                                setExpandedProvider(isExpanded ? null : p.id);
+                                setCustomClientId("");
+                                setCustomSecret("");
+                              }}
+                              className="w-full text-left px-3 py-2 text-[12px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors duration-150"
+                            >
+                              Own Papers
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                     {isExpanded && (
@@ -498,7 +567,7 @@ function Settings() {
             <div>Harbor — Your Fleet Commander for MCP Ships</div>
             <div className="text-text-muted">Version {currentVersion}</div>
             <div className="mt-2 pt-2 border-t border-border-subtle text-text-secondary leading-relaxed">
-              Command your MCP fleet across Claude Code, Codex, VS Code, and Cursor from one harbor.
+              Command your MCP fleet across Claude Code, Claude Desktop, Codex, VS Code, and Cursor from one harbor.
             </div>
           </div>
         </section>

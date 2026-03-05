@@ -6,22 +6,26 @@ description: "Add an MCP server and sync it to your hosts in under a minute."
 
 ## Using the CLI
 
+The fastest way to get started is with a native server from Harbor's built-in catalog:
+
 <Steps>
-  <Step title="Dock a server">
-    Add an MCP server to Harbor. This example adds the MCP memory server:
+  <Step title="Link a host">
+    Tell Harbor which AI tool you want to sync to:
 
     ```sh
-    harbor dock --name memory --command npx --args @modelcontextprotocol/server-memory
+    harbor port link claude
     ```
+
+    Valid hosts: `claude`, `claude-desktop`, `codex`, `vscode`, `cursor`
   </Step>
-  <Step title="Sync to your hosts">
-    Push your fleet to all connected hosts:
+  <Step title="Dock a native server">
+    Dock a server from the catalog with a single command:
 
     ```sh
-    harbor signal
+    harbor dock filesystem -- ~/Documents ~/Projects
     ```
 
-    This merges the server config into Claude Code, Codex, VS Code, and Cursor — wherever you've connected.
+    Harbor automatically syncs the server to your linked hosts — no extra step needed.
   </Step>
   <Step title="Check your fleet">
     Verify everything is docked:
@@ -32,32 +36,58 @@ description: "Add an MCP server and sync it to your hosts in under a minute."
   </Step>
 </Steps>
 
+### More native servers
+
+```sh
+harbor dock github          # GitHub API (needs a PAT — harbor chest set github_personal_access_token <token>)
+harbor dock slack           # Slack (opens browser for OAuth)
+harbor dock atlassian       # Jira & Confluence (OAuth)
+harbor dock brave-search    # Brave Search (needs API key)
+```
+
+Run `harbor dock --help` to see all available native servers, or see the [native servers guide](/guides/native-servers).
+
+### Custom servers
+
+You can also dock any MCP server manually:
+
+```sh
+harbor dock --name memory --command npx --args "-y,@modelcontextprotocol/server-memory"
+```
+
 ## Using the Desktop App
 
 <Steps>
-  <Step title="Open the Fleet page">
-    Launch Harbor and navigate to the **Fleet** tab in the sidebar.
+  <Step title="Open the Scout page">
+    Launch Harbor and navigate to the **Scout** tab in the sidebar. The **Native Fleet** section shows curated one-click servers.
   </Step>
-  <Step title="Dock a ship">
-    Click the **Dock Ship** button. Enter the server name, command, and any arguments or environment variables.
+  <Step title="Dock a server">
+    Click **Dock** on any server. For OAuth servers, Harbor opens your browser to authorize. For API key servers, paste your key inline.
   </Step>
-  <Step title="Connect your hosts">
-    Go to the **Ports** tab and connect the hosts you want to sync to (Claude Code, VS Code, etc.).
-  </Step>
-  <Step title="Signal your hosts">
-    Click **Signal All** to push your fleet to every connected host.
+  <Step title="Link your hosts">
+    Go to the **Ports** tab and click **Link** next to each host you want to sync to.
   </Step>
 </Steps>
 
+<Note>
+Syncing is automatic — Harbor pushes your fleet to all linked hosts whenever you dock, undock, or toggle a server. No manual sync step needed.
+</Note>
+
 ## What Just Happened?
 
-When you dock a server, Harbor stores it in `~/.harbor/config.toml`. When you signal, Harbor reads each host's config file, merges your servers in alongside any existing ones, and writes it back. Your original config is never overwritten — Harbor only adds or updates its own servers.
+When you dock a server, Harbor stores it in `~/.harbor/config.toml` and automatically syncs it to all linked hosts. Harbor reads each host's config file, merges your servers in alongside any existing ones, and writes it back. Your original config is never overwritten — Harbor only adds or updates its own servers.
 
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="Native Servers" icon="ship" href="/guides/native-servers">
+    See the full catalog of one-click servers.
+  </Card>
   <Card title="Secret Vault" icon="lock" href="/guides/vault">
     Store API keys securely and reference them in your servers.
+  </Card>
+  <Card title="OAuth" icon="key" href="/guides/oauth">
+    Learn about Harbor's built-in OAuth authentication.
   </Card>
   <Card title="CLI Reference" icon="terminal" href="/cli/commands">
     See every command Harbor offers.

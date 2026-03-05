@@ -27,7 +27,7 @@ pub async fn run(args: UninstallArgs) -> Result<(), HarborError> {
     let mut actions: Vec<String> = Vec::new();
 
     // 1. Harbor-managed entries in host configs
-    let hosts = ["claude", "codex", "vscode", "cursor"];
+    let hosts = ["claude", "claude-desktop", "codex", "vscode", "cursor"];
     for host_name in &hosts {
         if let Ok(conn) = connector::get_connector(host_name) {
             if conn.config_exists() {

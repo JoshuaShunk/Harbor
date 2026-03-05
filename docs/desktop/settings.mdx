@@ -1,7 +1,7 @@
 ---
 title: "Helm (Settings)"
 sidebarTitle: "Settings"
-description: "Configure Harbor's gateway, vault, theme, and updates."
+description: "Configure Harbor's vault, OAuth, theme, and updates."
 ---
 
 The **Helm** page is your control center for Harbor's settings.
@@ -10,11 +10,7 @@ The **Helm** page is your control center for Harbor's settings.
 
 ### Appearance
 
-Switch between **Light**, **Dark**, and **System** themes.
-
-### Lighthouse (Gateway)
-
-Configure the HTTP/SSE gateway port (default: `3100`). When running, the gateway exposes your MCP servers over HTTP. See the [gateway guide](/guides/gateway) for details.
+Switch between **Light**, **Dark**, and **System** themes using the visual toggle.
 
 ### Charts (Config)
 
@@ -36,4 +32,27 @@ See the [vault guide](/guides/vault) for more on how secrets work.
 
 ### Papers (OAuth)
 
-Manage OAuth provider configurations for servers that use OAuth authentication (GitHub, Google, Slack). You can set custom OAuth credentials here if needed.
+Manage OAuth provider configurations for servers that use OAuth authentication. Harbor supports the following providers:
+
+| Provider | Description |
+|----------|-------------|
+| GitHub | Repos, issues, PRs (via PAT or OAuth) |
+| Google | Drive, Gmail, Calendar, Workspace |
+| Slack | Channels, messages, users |
+| Atlassian | Jira, Confluence |
+| Linear | Issues, projects, cycles |
+| Notion | Pages, databases |
+| Sentry | Errors, performance |
+| Figma | Design inspection |
+| Stripe | Payments, customers |
+
+Each provider has a gear menu with the following options:
+
+- **Charter** — Start the OAuth flow to authorize
+- **Re-charter** — Re-authorize with fresh tokens
+- **Revoke** — Clear stored tokens
+- **Own Papers** — Set custom OAuth client credentials (client ID/secret) instead of Harbor's defaults
+
+<Note>
+The Lighthouse (gateway) configuration has moved to its own [dedicated page](/desktop/lighthouse).
+</Note>

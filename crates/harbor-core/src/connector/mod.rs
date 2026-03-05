@@ -1,4 +1,5 @@
 pub mod claude;
+pub mod claude_desktop;
 pub mod codex;
 pub mod cursor;
 pub mod vscode;
@@ -47,7 +48,7 @@ pub struct HostServerEntry {
 impl From<&ServerConfig> for HostServerEntry {
     fn from(config: &ServerConfig) -> Self {
         Self {
-            command: config.command.clone(),
+            command: config.command.clone().unwrap_or_default(),
             args: config.args.clone(),
             env: config.env.clone(),
         }
@@ -65,6 +66,7 @@ pub fn resolve_env_for_host(env: &BTreeMap<String, String>) -> BTreeMap<String, 
 pub fn get_connector(host: &str) -> Result<Box<dyn Connector>> {
     match host {
         "claude" => Ok(Box::new(claude::ClaudeConnector::new())),
+        "claude-desktop" => Ok(Box::new(claude_desktop::ClaudeDesktopConnector::new())),
         "codex" => Ok(Box::new(codex::CodexConnector::new())),
         "vscode" => Ok(Box::new(vscode::VsCodeConnector::new())),
         "cursor" => Ok(Box::new(cursor::CursorConnector::new())),
@@ -79,6 +81,7 @@ pub fn get_connector(host: &str) -> Result<Box<dyn Connector>> {
 pub fn all_connectors() -> Vec<Box<dyn Connector>> {
     vec![
         Box::new(claude::ClaudeConnector::new()),
+        Box::new(claude_desktop::ClaudeDesktopConnector::new()),
         Box::new(codex::CodexConnector::new()),
         Box::new(vscode::VsCodeConnector::new()),
         Box::new(cursor::CursorConnector::new()),
@@ -94,13 +97,15 @@ mod tests {
     fn test_host_server_entry_from_server_config() {
         let config = crate::config::ServerConfig {
             source: Some("npm:@mcp/test".to_string()),
-            command: "npx".to_string(),
+            command: Some("npx".to_string()),
             args: vec!["-y".to_string(), "@mcp/test".to_string()],
             env: {
                 let mut env = BTreeMap::new();
                 env.insert("TOKEN".to_string(), "secret123".to_string());
                 env
             },
+            url: None,
+            headers: None,
             enabled: true,
             auto_start: false,
             hosts: BTreeMap::new(),
@@ -119,9 +124,11 @@ mod tests {
     fn test_host_server_entry_from_minimal_config() {
         let config = crate::config::ServerConfig {
             source: None,
-            command: "echo".to_string(),
+            command: Some("echo".to_string()),
             args: vec![],
             env: BTreeMap::new(),
+            url: None,
+            headers: None,
             enabled: true,
             auto_start: false,
             hosts: BTreeMap::new(),
@@ -138,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_get_connector_valid_hosts() {
-        let hosts = ["claude", "codex", "vscode", "cursor"];
+        let hosts = ["claude", "claude-desktop", "codex", "vscode", "cursor"];
         for host in &hosts {
             let connector = get_connector(host);
             assert!(connector.is_ok(), "Failed to get connector for {}", host);
@@ -152,15 +159,18 @@ mod tests {
     }
 
     #[test]
-    fn test_all_connectors_returns_four() {
+    fn test_all_connectors_returns_five() {
         let connectors = all_connectors();
-        assert_eq!(connectors.len(), 4);
+        assert_eq!(connectors.len(), 5);
     }
 
     #[test]
     fn test_connector_host_names() {
         let claude = get_connector("claude").unwrap();
         assert_eq!(claude.host_name(), "Claude Code");
+
+        let claude_desktop = get_connector("claude-desktop").unwrap();
+        assert_eq!(claude_desktop.host_name(), "Claude Desktop");
 
         let codex = get_connector("codex").unwrap();
         assert_eq!(codex.host_name(), "Codex");
@@ -175,7 +185,7 @@ mod tests {
     #[test]
     fn test_connector_config_paths_are_valid() {
         // Each connector should return a valid path (not error)
-        let hosts = ["claude", "codex", "vscode", "cursor"];
+        let hosts = ["claude", "claude-desktop", "codex", "vscode", "cursor"];
         for host in &hosts {
             let connector = get_connector(host).unwrap();
             let path = connector.config_path();

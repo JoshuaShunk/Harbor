@@ -59,6 +59,34 @@ struct RawPackage {
     transport: Option<RawTransport>,
     #[serde(default, rename = "environmentVariables")]
     environment_variables: Vec<RawEnvVar>,
+    #[serde(default, rename = "packageArguments")]
+    package_arguments: Vec<RawPackageArgument>,
+}
+
+#[derive(Deserialize)]
+struct RawPackageArgument {
+    #[serde(default, rename = "type")]
+    type_: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default, rename = "isRequired")]
+    is_required: bool,
+    #[serde(default)]
+    format: Option<String>,
+    #[serde(default)]
+    default: Option<serde_json::Value>,
+    #[serde(default, rename = "isSecret")]
+    is_secret: bool,
+    #[serde(default, rename = "isRepeated")]
+    is_repeated: bool,
+    #[serde(default)]
+    choices: Option<Vec<String>>,
+    #[serde(default)]
+    placeholder: Option<String>,
+    #[serde(default, rename = "valueHint")]
+    value_hint: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -114,6 +142,7 @@ pub struct PackageInfo {
     pub version: Option<String>,
     pub runtime_hint: Option<String>,
     pub environment_variables: Vec<EnvVarSpec>,
+    pub package_arguments: Vec<PackageArgSpec>,
 }
 
 /// An environment variable that an MCP server expects.
@@ -124,6 +153,22 @@ pub struct EnvVarSpec {
     pub is_required: bool,
     pub is_secret: bool,
     pub default: Option<String>,
+}
+
+/// A command-line argument that an MCP server accepts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageArgSpec {
+    pub arg_type: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_required: bool,
+    pub format: String,
+    pub default: Option<String>,
+    pub is_secret: bool,
+    pub is_repeated: bool,
+    pub choices: Option<Vec<String>>,
+    pub placeholder: Option<String>,
+    pub value_hint: Option<String>,
 }
 
 /// Search results from the MCP registry.
@@ -193,6 +238,69 @@ impl RegistryClient {
 
         let servers = raw.servers.into_iter().map(flatten_server).collect();
         Ok((servers, raw.metadata.next_cursor))
+    }
+
+    /// Look up a server by its package identifier (e.g. "@brave/brave-search-mcp-server")
+    /// or by its registry qualified name (e.g. "io.github.brave/brave-search-mcp-server").
+    ///
+    /// First tries an exact search, then falls back to a cleaned-up base name search
+    /// (e.g. "@modelcontextprotocol/server-brave-search" → "brave-search").
+    pub async fn lookup_by_identifier(&self, identifier: &str) -> Result<Option<RegistryServer>> {
+        // Try exact search first
+        let (servers, _) = self.fetch_page(identifier, None, 20).await?;
+        let exact = servers.into_iter().find(|s| {
+            s.package
+                .as_ref()
+                .map(|p| p.identifier == identifier)
+                .unwrap_or(false)
+                || s.name == identifier
+        });
+        if exact.is_some() {
+            return Ok(exact);
+        }
+
+        // Extract a base name for a broader search
+        let base = Self::extract_base_name(identifier);
+        if base == identifier || base.is_empty() {
+            return Ok(None);
+        }
+
+        let (servers, _) = self.fetch_page(&base, None, 20).await?;
+        // Find the best match: prefer servers whose package identifier or name
+        // contains the base name
+        Ok(servers.into_iter().find(|s| {
+            let pkg_matches = s
+                .package
+                .as_ref()
+                .map(|p| Self::extract_base_name(&p.identifier) == base)
+                .unwrap_or(false);
+            let name_matches = s.name.contains(&base);
+            pkg_matches || name_matches
+        }))
+    }
+
+    /// Extract a searchable base name from a package identifier.
+    /// "@modelcontextprotocol/server-brave-search" → "brave-search"
+    /// "@brave/brave-search-mcp-server" → "brave-search"
+    /// "mcp-server-fetch" → "fetch"
+    fn extract_base_name(identifier: &str) -> String {
+        // Strip npm scope (@scope/)
+        let name = if let Some(pos) = identifier.find('/') {
+            &identifier[pos + 1..]
+        } else {
+            identifier
+        };
+        // Strip common prefixes/suffixes
+        let name = name
+            .strip_prefix("server-")
+            .or_else(|| name.strip_prefix("mcp-server-"))
+            .or_else(|| name.strip_prefix("mcp_server_"))
+            .unwrap_or(name);
+        let name = name
+            .strip_suffix("-mcp-server")
+            .or_else(|| name.strip_suffix("-mcp"))
+            .unwrap_or(name);
+        name.to_string()
     }
 
     /// Search for MCP servers in the official registry.
@@ -324,6 +432,29 @@ fn flatten_server(entry: RawServerEntry) -> RegistryServer {
                             serde_json::Value::Null => None,
                             other => Some(other.to_string()),
                         }),
+                    })
+                    .collect(),
+                package_arguments: p
+                    .package_arguments
+                    .into_iter()
+                    .filter_map(|a| {
+                        Some(PackageArgSpec {
+                            arg_type: a.type_.unwrap_or_else(|| "positional".into()),
+                            name: a.name?,
+                            description: a.description,
+                            is_required: a.is_required,
+                            format: a.format.unwrap_or_else(|| "string".into()),
+                            default: a.default.and_then(|v| match v {
+                                serde_json::Value::String(s) => Some(s),
+                                serde_json::Value::Null => None,
+                                other => Some(other.to_string()),
+                            }),
+                            is_secret: a.is_secret,
+                            is_repeated: a.is_repeated,
+                            choices: a.choices,
+                            placeholder: a.placeholder,
+                            value_hint: a.value_hint,
+                        })
                     })
                     .collect(),
             })

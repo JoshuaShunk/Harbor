@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Plus, X, Trash2, Zap, Lock, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { Plus, X, Trash2, Zap, Lock, ChevronDown, ChevronRight, RefreshCw, Globe, Monitor, FolderOpen, FileText, Search } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
 import {
@@ -11,9 +12,19 @@ import {
   setToolAllowlist,
   setToolBlocklist,
   discoverTools,
+  getServerExtraArgs,
+  setServerExtraArgs,
+  getServerArgs,
+  setServerArgs,
+  getConfigSchema,
+  vaultSet,
   type ServerStatus,
   type ToolFilterInfo,
   type DiscoveredTool,
+  type ServerExtraArgsInfo,
+  type ConfigSchemaResponse,
+  type ConfigSchemaArg,
+  type ConfigSchemaEnvVar,
 } from "../lib/tauri";
 
 function ToolFilterPanel({ serverName }: { serverName: string }) {
@@ -23,6 +34,7 @@ function ToolFilterPanel({ serverName }: { serverName: string }) {
   const [discovering, setDiscovering] = useState(false);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [toolSearch, setToolSearch] = useState("");
 
   const loadFilters = async () => {
     try {
@@ -112,8 +124,19 @@ function ToolFilterPanel({ serverName }: { serverName: string }) {
     return <div className="h-8 rounded bg-bg-app animate-pulse mt-2" />;
   }
 
+  const TOOL_DISPLAY_LIMIT = 10;
+
   const blockedCount = tools.filter((t) => isToolBlocked(t.name)).length;
   const totalCount = tools.length;
+
+  const filteredTools = toolSearch
+    ? tools.filter((t) =>
+        t.name.toLowerCase().includes(toolSearch.toLowerCase()) ||
+        t.description?.toLowerCase().includes(toolSearch.toLowerCase())
+      )
+    : tools;
+  const displayedTools = filteredTools.slice(0, TOOL_DISPLAY_LIMIT);
+  const hiddenCount = filteredTools.length - displayedTools.length;
 
   return (
     <div className="mt-3 pt-3 border-t border-border-subtle">
@@ -164,10 +187,24 @@ function ToolFilterPanel({ serverName }: { serverName: string }) {
         </div>
       )}
 
+      {/* Search (shown when >10 tools) */}
+      {totalCount > TOOL_DISPLAY_LIMIT && (
+        <div className="relative mb-2">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted" />
+          <input
+            type="text"
+            value={toolSearch}
+            onChange={(e) => setToolSearch(e.target.value)}
+            placeholder={`Search ${totalCount} tools...`}
+            className="w-full pl-6 pr-2 py-1.5 rounded bg-bg-app border border-border-default text-[11px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
+          />
+        </div>
+      )}
+
       {/* Tool list */}
       {totalCount > 0 ? (
         <div className="space-y-0.5">
-          {tools.map((tool) => {
+          {displayedTools.map((tool) => {
             const blocked = isToolBlocked(tool.name);
             return (
               <button
@@ -205,6 +242,11 @@ function ToolFilterPanel({ serverName }: { serverName: string }) {
               </button>
             );
           })}
+          {hiddenCount > 0 && (
+            <div className="px-2 py-1.5 text-[11px] text-text-muted">
+              +{hiddenCount} more tool{hiddenCount !== 1 ? "s" : ""}{toolSearch ? " matching search" : ""}
+            </div>
+          )}
         </div>
       ) : !discoveryError ? (
         <div className="text-[11px] text-text-muted">
@@ -227,6 +269,600 @@ function ToolFilterPanel({ serverName }: { serverName: string }) {
   );
 }
 
+/** Args that are runtime boilerplate, not user-configurable */
+function isBoilerplateArg(arg: string): boolean {
+  if (arg === "-y" || arg === "--yes") return true;
+  if (arg.startsWith("@") && arg.includes("/")) return true; // npm scoped package
+  if (arg.startsWith("mcp-server-") || arg.startsWith("mcp_server_")) return true; // pypi package
+  return false;
+}
+
+function ServerArgsPanel({ serverName }: { serverName: string }) {
+  const [editableArgs, setEditableArgs] = useState<string[]>([]);
+  const [boilerplateArgs, setBoilerplateArgs] = useState<string[]>([]);
+  const [nativeInfo, setNativeInfo] = useState<ServerExtraArgsInfo | null>(null);
+  const [isNative, setIsNative] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [newArg, setNewArg] = useState("");
+  const [textValue, setTextValue] = useState("");
+
+  const load = async () => {
+    try {
+      const extraInfo = await getServerExtraArgs(serverName).catch(() => null);
+      setNativeInfo(extraInfo);
+
+      const native = extraInfo && extraInfo.extra_args_kind !== "none";
+      setIsNative(!!native);
+
+      if (native) {
+        // Native server: only show the extra args (user-configurable)
+        setEditableArgs(extraInfo!.extra_args);
+        setBoilerplateArgs([]);
+        if (extraInfo!.extra_args_kind === "text") {
+          setTextValue(extraInfo!.extra_args[0] ?? "");
+        }
+      } else {
+        // Non-native: filter out boilerplate (runtime flags, package names)
+        const allArgs = await getServerArgs(serverName);
+        const boilerplate = allArgs.filter(isBoilerplateArg);
+        const userArgs = allArgs.filter(a => !isBoilerplateArg(a));
+        setBoilerplateArgs(boilerplate);
+        setEditableArgs(userArgs);
+      }
+      setDirty(false);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [serverName]);
+
+  if (loading) return <div className="h-6 rounded bg-bg-app animate-pulse mt-2" />;
+
+  const kind = nativeInfo?.extra_args_kind ?? "none";
+
+  const handlePickFolder = async () => {
+    const result = await open({ directory: true, multiple: true });
+    if (result) {
+      const selected = Array.isArray(result) ? result : [result];
+      const updated = [...editableArgs, ...selected.filter((p) => !editableArgs.includes(p))];
+      setEditableArgs(updated);
+      setDirty(true);
+    }
+  };
+
+  const handlePickFile = async () => {
+    const result = await open({ directory: false, multiple: false });
+    if (result) {
+      const file = Array.isArray(result) ? result[0] : result;
+      setEditableArgs([file]);
+      setDirty(true);
+    }
+  };
+
+  const removeArg = (idx: number) => {
+    setEditableArgs(editableArgs.filter((_, i) => i !== idx));
+    setDirty(true);
+  };
+
+  const addArg = () => {
+    if (newArg.trim()) {
+      setEditableArgs([...editableArgs, newArg.trim()]);
+      setNewArg("");
+      setDirty(true);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      if (isNative) {
+        // Save only the extra args portion (backend preserves catalog defaults)
+        const args = kind === "text" ? (textValue ? [textValue] : []) : editableArgs;
+        await setServerExtraArgs(serverName, args);
+      } else {
+        // Prepend boilerplate args back before saving
+        await setServerArgs(serverName, [...boilerplateArgs, ...editableArgs]);
+      }
+      setDirty(false);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Determine the section label
+  const label = isNative
+    ? (nativeInfo?.extra_args_label ?? "Configuration")
+    : "Arguments";
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border-subtle">
+      <div className="text-[11px] text-text-muted font-medium mb-2">
+        {label}
+      </div>
+
+      {error && (
+        <div className="mb-2 px-2 py-1 rounded text-[11px] bg-red-muted text-red border border-red/20">
+          {error}
+        </div>
+      )}
+
+      {/* Text input mode (e.g. postgres connection string) */}
+      {isNative && kind === "text" && (
+        <input
+          value={textValue}
+          onChange={(e) => { setTextValue(e.target.value); setDirty(true); }}
+          placeholder={nativeInfo?.extra_args_placeholder ?? ""}
+          className="w-full px-2.5 py-1.5 rounded-md text-[12px] font-mono bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
+        />
+      )}
+
+      {/* List mode (directories, files, or generic args) */}
+      {kind !== "text" && (
+        <>
+          {editableArgs.length > 0 && (
+            <div className="space-y-1">
+              {editableArgs.map((arg, i) => (
+                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded bg-bg-app border border-border-default group">
+                  {kind === "directories" ? (
+                    <FolderOpen className="w-3.5 h-3.5 text-accent shrink-0" />
+                  ) : kind === "file" ? (
+                    <FileText className="w-3.5 h-3.5 text-accent shrink-0" />
+                  ) : (
+                    <span className="text-[10px] text-text-muted w-3.5 text-center shrink-0 font-mono">{i}</span>
+                  )}
+                  <span className="text-[12px] font-mono text-text-secondary truncate flex-1">{arg}</span>
+                  <button
+                    onClick={() => removeArg(i)}
+                    className="p-0.5 rounded text-text-muted hover:text-red transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 mt-2">
+            {kind === "directories" && (
+              <button
+                onClick={handlePickFolder}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium bg-bg-app border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                Add Folder
+              </button>
+            )}
+            {kind === "file" && (
+              <button
+                onClick={handlePickFile}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium bg-bg-app border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                {editableArgs.length > 0 ? "Change File" : "Choose File"}
+              </button>
+            )}
+            <div className="flex items-center gap-1.5 flex-1">
+              <input
+                value={newArg}
+                onChange={(e) => setNewArg(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addArg()}
+                placeholder="Add argument..."
+                className="flex-1 px-2 py-1.5 rounded-md text-[12px] font-mono bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
+              />
+              <button
+                onClick={addArg}
+                disabled={!newArg.trim()}
+                className="px-2 py-1.5 rounded-md text-[12px] font-medium bg-bg-app border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover disabled:opacity-40 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {dirty && (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="mt-2 px-3 py-1.5 rounded-md text-[12px] font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-40 transition-colors"
+        >
+          {saving ? "Saving..." : "Save"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function RegistryConfigPanel({ serverName }: { serverName: string }) {
+  const [schema, setSchema] = useState<ConfigSchemaResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [argValues, setArgValues] = useState<Record<string, string[]>>({});
+  const [envValues, setEnvValues] = useState<Record<string, string>>({});
+  const [currentArgs, setCurrentArgs] = useState<string[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [schemaRes, args] = await Promise.all([
+          getConfigSchema(serverName),
+          getServerArgs(serverName),
+        ]);
+        setSchema(schemaRes);
+        setCurrentArgs(args);
+
+        // Initialize arg values from current args
+        if (schemaRes.args) {
+          const vals: Record<string, string[]> = {};
+          for (const spec of schemaRes.args) {
+            if (spec.arg_type === "positional") {
+              // Positional args come after the package identifier in the args array
+              // Find matching values from current args
+              const matches = args.filter(a =>
+                !a.startsWith("-") && a !== "-y" &&
+                !a.startsWith("@") && !a.startsWith("mcp-server-") && !a.startsWith("mcp_server_")
+              );
+              if (matches.length > 0) vals[spec.name] = matches;
+            } else if (spec.arg_type === "named") {
+              const prefix = `--${spec.name}=`;
+              const matches = args
+                .filter(a => a.startsWith(prefix))
+                .map(a => a.slice(prefix.length));
+              if (matches.length > 0) vals[spec.name] = matches;
+            }
+          }
+          setArgValues(vals);
+        }
+      } catch {
+        setSchema(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [serverName]);
+
+  if (loading) return <div className="h-6 rounded bg-bg-app animate-pulse mt-2" />;
+  if (!schema || (!schema.args?.length && !schema.env_vars?.length)) return null;
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      // Rebuild args: keep existing non-schema args, replace schema-defined ones
+      const schemaArgNames = new Set((schema.args ?? []).map(a => a.name));
+      // Keep args that aren't managed by schema (e.g., "-y", package identifier)
+      const kept = currentArgs.filter(a => {
+        // Keep flags and package identifiers
+        if (a === "-y") return true;
+        if (a.startsWith("@") || a.startsWith("mcp-server-") || a.startsWith("mcp_server_")) return true;
+        // Remove named args that match schema
+        for (const name of schemaArgNames) {
+          if (a.startsWith(`--${name}=`) || a === `--${name}`) return false;
+        }
+        // Keep unrecognized args
+        return true;
+      });
+
+      // Add schema-managed args back with new values
+      const newArgs = [...kept];
+      for (const spec of (schema.args ?? [])) {
+        const vals = argValues[spec.name] ?? [];
+        if (spec.arg_type === "named") {
+          for (const v of vals) {
+            if (v) newArgs.push(`--${spec.name}=${v}`);
+          }
+        } else if (spec.arg_type === "positional") {
+          newArgs.push(...vals.filter(Boolean));
+        }
+      }
+
+      await setServerArgs(serverName, newArgs);
+
+      // Save env vars to vault or config
+      for (const [key, value] of Object.entries(envValues)) {
+        if (value) {
+          // Store secret env vars in vault
+          const spec = schema.env_vars?.find(e => e.name === key);
+          if (spec?.is_secret) {
+            await vaultSet(key.toLowerCase(), value);
+          }
+        }
+      }
+
+      setDirty(false);
+      setCurrentArgs(newArgs);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateArgValue = (name: string, index: number, value: string) => {
+    setArgValues(prev => {
+      const arr = [...(prev[name] ?? [])];
+      arr[index] = value;
+      return { ...prev, [name]: arr };
+    });
+    setDirty(true);
+  };
+
+  const addArgValue = (name: string) => {
+    setArgValues(prev => ({
+      ...prev,
+      [name]: [...(prev[name] ?? []), ""],
+    }));
+    setDirty(true);
+  };
+
+  const removeArgValue = (name: string, index: number) => {
+    setArgValues(prev => ({
+      ...prev,
+      [name]: (prev[name] ?? []).filter((_, i) => i !== index),
+    }));
+    setDirty(true);
+  };
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border-subtle">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[11px] text-text-muted font-medium">Configuration</span>
+        {schema.registry_name && (
+          <span className="text-[10px] text-text-muted px-1.5 py-0.5 rounded bg-bg-app border border-border-default">
+            via {schema.registry_name}
+          </span>
+        )}
+      </div>
+
+      {error && (
+        <div className="mb-2 px-2 py-1 rounded text-[11px] bg-red-muted text-red border border-red/20">
+          {error}
+        </div>
+      )}
+
+      {/* Package arguments */}
+      {(schema.args ?? []).length > 0 && (
+        <div className="space-y-3 mb-3">
+          {(schema.args ?? []).map((spec) => (
+            <ArgField
+              key={spec.name}
+              spec={spec}
+              values={argValues[spec.name] ?? []}
+              onChange={(idx, val) => updateArgValue(spec.name, idx, val)}
+              onAdd={() => addArgValue(spec.name)}
+              onRemove={(idx) => removeArgValue(spec.name, idx)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Environment variables */}
+      {(schema.env_vars ?? []).length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[11px] text-text-muted font-medium">Environment Variables</div>
+          {(schema.env_vars ?? []).map((ev) => (
+            <EnvVarField
+              key={ev.name}
+              spec={ev}
+              value={envValues[ev.name] ?? ""}
+              onChange={(val) => {
+                setEnvValues(prev => ({ ...prev, [ev.name]: val }));
+                setDirty(true);
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {dirty && (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="mt-2 px-3 py-1.5 rounded-md text-[12px] font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-40 transition-colors"
+        >
+          {saving ? "Saving..." : "Save"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ArgField({
+  spec,
+  values,
+  onChange,
+  onAdd,
+  onRemove,
+}: {
+  spec: ConfigSchemaArg;
+  values: string[];
+  onChange: (index: number, value: string) => void;
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+}) {
+  const effectiveValues = values.length > 0 ? values : [""];
+
+  const handlePickFolder = async (index: number) => {
+    const result = await open({ directory: true, multiple: false });
+    if (result) {
+      const path = Array.isArray(result) ? result[0] : result;
+      if (path) onChange(index, path);
+    }
+  };
+
+  const handlePickFile = async (index: number) => {
+    const result = await open({ directory: false, multiple: false });
+    if (result) {
+      const path = Array.isArray(result) ? result[0] : result;
+      if (path) onChange(index, path);
+    }
+  };
+
+  const isFilePath = spec.format === "filepath" || spec.format === "path";
+
+  return (
+    <div>
+      <label className="flex items-center gap-1.5 text-[12px] font-medium text-text-primary mb-1">
+        {spec.name}
+        {spec.is_required && <span className="text-red text-[10px]">required</span>}
+        {spec.is_secret && <Lock className="w-3 h-3 text-text-muted" />}
+      </label>
+      {spec.description && (
+        <p className="text-[11px] text-text-muted mb-1">{spec.description}</p>
+      )}
+
+      {spec.choices ? (
+        // Dropdown for choices
+        <select
+          value={effectiveValues[0] ?? spec.default ?? ""}
+          onChange={(e) => onChange(0, e.target.value)}
+          className="w-full px-2.5 py-1.5 rounded-md text-[12px] bg-bg-app border border-border-default text-text-primary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
+        >
+          <option value="">Select...</option>
+          {spec.choices.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      ) : spec.is_repeated ? (
+        // Multi-value list
+        <div className="space-y-1">
+          {effectiveValues.map((val, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input
+                value={val}
+                onChange={(e) => onChange(i, e.target.value)}
+                placeholder={spec.placeholder ?? spec.value_hint ?? `${spec.name}...`}
+                className="flex-1 px-2.5 py-1.5 rounded-md text-[12px] font-mono bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
+              />
+              {isFilePath && (
+                <button
+                  onClick={() => spec.format === "filepath" ? handlePickFile(i) : handlePickFolder(i)}
+                  className="p-1.5 rounded-md bg-bg-app border border-border-default text-text-muted hover:text-text-primary hover:border-border-hover transition-colors"
+                >
+                  {spec.format === "filepath" ? <FileText className="w-3.5 h-3.5" /> : <FolderOpen className="w-3.5 h-3.5" />}
+                </button>
+              )}
+              {effectiveValues.length > 1 && (
+                <button
+                  onClick={() => onRemove(i)}
+                  className="p-1 rounded text-text-muted hover:text-red transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={onAdd}
+            className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-text-secondary transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Add another
+          </button>
+        </div>
+      ) : (
+        // Single value input
+        <div className="flex items-center gap-1.5">
+          <input
+            type={spec.is_secret ? "password" : "text"}
+            value={effectiveValues[0] ?? ""}
+            onChange={(e) => onChange(0, e.target.value)}
+            placeholder={spec.placeholder ?? spec.value_hint ?? spec.default ?? `${spec.name}...`}
+            className="flex-1 px-2.5 py-1.5 rounded-md text-[12px] font-mono bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
+          />
+          {isFilePath && (
+            <button
+              onClick={() => spec.format === "filepath" ? handlePickFile(0) : handlePickFolder(0)}
+              className="p-1.5 rounded-md bg-bg-app border border-border-default text-text-muted hover:text-text-primary hover:border-border-hover transition-colors"
+            >
+              {spec.format === "filepath" ? <FileText className="w-3.5 h-3.5" /> : <FolderOpen className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EnvVarField({
+  spec,
+  value,
+  onChange,
+}: {
+  spec: ConfigSchemaEnvVar;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="flex items-center gap-1.5 text-[12px] font-medium text-text-primary mb-0.5">
+        {spec.name}
+        {spec.is_required && <span className="text-red text-[10px]">required</span>}
+        {spec.is_secret && <Lock className="w-3 h-3 text-text-muted" />}
+      </label>
+      <input
+        type={spec.is_secret ? "password" : "text"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={spec.is_secret ? `vault:${spec.name.toLowerCase()}` : (spec.default ?? spec.name)}
+        className="w-full px-2.5 py-1.5 rounded-md text-[12px] font-mono bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
+      />
+      {spec.description && (
+        <p className="text-[11px] text-text-muted mt-0.5">{spec.description}</p>
+      )}
+    </div>
+  );
+}
+
+function ServerConfigPanel({ serverName, source }: { serverName: string; source: string | null }) {
+  const isNative = source?.startsWith("native:");
+
+  return (
+    <>
+      {/* Registry config schema (available for all servers) */}
+      <RegistryConfigSchemaSection serverName={serverName} />
+      {/* Native servers get the ExtraArgs system, others get generic args editor */}
+      {isNative ? (
+        <ServerArgsPanel serverName={serverName} />
+      ) : (
+        <ServerArgsPanel serverName={serverName} />
+      )}
+    </>
+  );
+}
+
+function RegistryConfigSchemaSection({ serverName }: { serverName: string }) {
+  const [hasSchema, setHasSchema] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    getConfigSchema(serverName)
+      .then(res => {
+        const has = !!((res.args && res.args.length > 0) || (res.env_vars && res.env_vars.length > 0));
+        setHasSchema(has);
+      })
+      .catch(() => setHasSchema(false));
+  }, [serverName]);
+
+  if (hasSchema === null) return <div className="h-6 rounded bg-bg-app animate-pulse mt-2" />;
+  if (!hasSchema) return null;
+
+  return <RegistryConfigPanel serverName={serverName} />;
+}
+
+const inputClass = "px-3 py-2 rounded-md text-[13px] bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors duration-150";
+
 function Servers() {
   const [servers, setServers] = useState<ServerStatus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -235,12 +871,19 @@ function Servers() {
   const [expandedServer, setExpandedServer] = useState<string | null>(null);
 
   // Add form state
+  const [addMode, setAddMode] = useState<"local" | "remote">("local");
   const [newName, setNewName] = useState("");
+  // Local mode
   const [newCommand, setNewCommand] = useState("");
   const [newArgs, setNewArgs] = useState("");
   const [newEnvKey, setNewEnvKey] = useState("");
   const [newEnvVal, setNewEnvVal] = useState("");
   const [envPairs, setEnvPairs] = useState<[string, string][]>([]);
+  // Remote mode
+  const [newUrl, setNewUrl] = useState("");
+  const [newHeaderKey, setNewHeaderKey] = useState("");
+  const [newHeaderVal, setNewHeaderVal] = useState("");
+  const [headerPairs, setHeaderPairs] = useState<[string, string][]>([]);
 
   const refresh = async () => {
     try {
@@ -260,20 +903,49 @@ function Servers() {
     setTimeout(() => setError(null), 4000);
   };
 
-  const handleAdd = async () => {
-    if (!newName || !newCommand) return;
-    const args = newArgs.split(/\s+/).filter(Boolean);
-    const env: Record<string, string> = {};
-    envPairs.forEach(([k, v]) => { env[k] = v; });
+  const resetForm = () => {
+    setNewName(""); setNewCommand(""); setNewArgs("");
+    setNewEnvKey(""); setNewEnvVal(""); setEnvPairs([]);
+    setNewUrl(""); setNewHeaderKey(""); setNewHeaderVal(""); setHeaderPairs([]);
+  };
 
-    try {
-      await addServer(newName, newCommand, args, env);
-      setShowAdd(false);
-      setNewName(""); setNewCommand(""); setNewArgs("");
-      setEnvPairs([]);
-      refresh();
-    } catch (e) {
-      showError(String(e));
+  const handleAdd = async () => {
+    if (!newName) return;
+
+    if (addMode === "local") {
+      if (!newCommand) return;
+      const args = newArgs.split(/\s+/).filter(Boolean);
+      const env: Record<string, string> = {};
+      envPairs.forEach(([k, v]) => { env[k] = v; });
+
+      try {
+        await addServer(newName, newCommand, args, env);
+        setShowAdd(false);
+        resetForm();
+        refresh();
+      } catch (e) {
+        showError(String(e));
+      }
+    } else {
+      if (!newUrl) return;
+      const headers: Record<string, string> = {};
+      headerPairs.forEach(([k, v]) => { headers[k] = v; });
+
+      try {
+        await addServer(
+          newName,
+          null,
+          [],
+          {},
+          newUrl,
+          Object.keys(headers).length > 0 ? headers : null,
+        );
+        setShowAdd(false);
+        resetForm();
+        refresh();
+      } catch (e) {
+        showError(String(e));
+      }
     }
   };
 
@@ -302,6 +974,17 @@ function Servers() {
       setNewEnvKey(""); setNewEnvVal("");
     }
   };
+
+  const addHeaderPair = () => {
+    if (newHeaderKey) {
+      setHeaderPairs([...headerPairs, [newHeaderKey, newHeaderVal]]);
+      setNewHeaderKey(""); setNewHeaderVal("");
+    }
+  };
+
+  const canSubmit = addMode === "local"
+    ? !!(newName && newCommand)
+    : !!(newName && newUrl);
 
   if (loading) {
     return (
@@ -357,60 +1040,141 @@ function Servers() {
       {/* Add server form */}
       {showAdd && (
         <div className="mb-6 p-4 rounded-lg bg-bg-element border border-border-subtle animate-fade-in">
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <input
-              placeholder="Ship name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="px-3 py-2 rounded-md text-[13px] bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors duration-150"
-            />
-            <input
-              placeholder="Command (e.g. npx)"
-              value={newCommand}
-              onChange={(e) => setNewCommand(e.target.value)}
-              className="px-3 py-2 rounded-md text-[13px] bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors duration-150"
-            />
-          </div>
-          <input
-            placeholder="Cargo (space-separated, e.g. -y @mcp/server-github)"
-            value={newArgs}
-            onChange={(e) => setNewArgs(e.target.value)}
-            className="w-full px-3 py-2 rounded-md text-[13px] bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors duration-150 mb-3"
-          />
-
-          {/* Env vars */}
-          <div className="flex gap-2 mb-2">
-            <input
-              placeholder="ENV_KEY"
-              value={newEnvKey}
-              onChange={(e) => setNewEnvKey(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-md text-[13px] font-mono bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors duration-150"
-            />
-            <input
-              placeholder="provision (or vault:key_name)"
-              value={newEnvVal}
-              onChange={(e) => setNewEnvVal(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-md text-[13px] bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors duration-150"
-            />
+          {/* Local / Remote toggle */}
+          <div className="flex items-center gap-1 mb-4 p-0.5 rounded-md bg-bg-app border border-border-default w-fit">
             <button
-              onClick={addEnvPair}
-              className="px-3 py-2 rounded-md text-[13px] bg-bg-app border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors duration-150"
+              onClick={() => setAddMode("local")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-colors duration-150 ${
+                addMode === "local"
+                  ? "bg-bg-element text-text-primary shadow-sm"
+                  : "text-text-muted hover:text-text-secondary"
+              }`}
             >
-              + Env
+              <Monitor className="w-3.5 h-3.5" />
+              Local
+            </button>
+            <button
+              onClick={() => setAddMode("remote")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-colors duration-150 ${
+                addMode === "remote"
+                  ? "bg-bg-element text-text-primary shadow-sm"
+                  : "text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              Remote
             </button>
           </div>
-          {envPairs.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {envPairs.map(([k, v], i) => (
-                <span key={i} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-bg-active text-text-secondary font-mono">
-                  {k}={v.startsWith("vault:") ? <Lock className="w-3 h-3" /> : "***"}
-                </span>
-              ))}
-            </div>
+
+          {addMode === "local" ? (
+            <>
+              {/* Local server fields */}
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <input
+                  placeholder="Ship name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className={inputClass}
+                />
+                <input
+                  placeholder="Command (e.g. npx)"
+                  value={newCommand}
+                  onChange={(e) => setNewCommand(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <input
+                placeholder="Cargo (space-separated, e.g. -y @mcp/server-github)"
+                value={newArgs}
+                onChange={(e) => setNewArgs(e.target.value)}
+                className={`w-full ${inputClass} mb-3`}
+              />
+
+              {/* Env vars */}
+              <div className="flex gap-2 mb-2">
+                <input
+                  placeholder="ENV_KEY"
+                  value={newEnvKey}
+                  onChange={(e) => setNewEnvKey(e.target.value)}
+                  className={`flex-1 font-mono ${inputClass}`}
+                />
+                <input
+                  placeholder="provision (or vault:key_name)"
+                  value={newEnvVal}
+                  onChange={(e) => setNewEnvVal(e.target.value)}
+                  className={`flex-1 ${inputClass}`}
+                />
+                <button
+                  onClick={addEnvPair}
+                  className="px-3 py-2 rounded-md text-[13px] bg-bg-app border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors duration-150"
+                >
+                  + Env
+                </button>
+              </div>
+              {envPairs.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {envPairs.map(([k, v], i) => (
+                    <span key={i} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-bg-active text-text-secondary font-mono">
+                      {k}={v.startsWith("vault:") ? <Lock className="w-3 h-3" /> : "***"}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Remote server fields */}
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <input
+                  placeholder="Ship name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className={inputClass}
+                />
+                <input
+                  placeholder="URL (e.g. https://mcp.example.com/mcp)"
+                  value={newUrl}
+                  onChange={(e) => setNewUrl(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+
+              {/* Headers */}
+              <div className="flex gap-2 mb-2">
+                <input
+                  placeholder="Header name (e.g. Authorization)"
+                  value={newHeaderKey}
+                  onChange={(e) => setNewHeaderKey(e.target.value)}
+                  className={`flex-1 ${inputClass}`}
+                />
+                <input
+                  placeholder="Value (or vault:key_name)"
+                  value={newHeaderVal}
+                  onChange={(e) => setNewHeaderVal(e.target.value)}
+                  className={`flex-1 ${inputClass}`}
+                />
+                <button
+                  onClick={addHeaderPair}
+                  className="px-3 py-2 rounded-md text-[13px] bg-bg-app border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors duration-150"
+                >
+                  + Header
+                </button>
+              </div>
+              {headerPairs.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {headerPairs.map(([k, v], i) => (
+                    <span key={i} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-bg-active text-text-secondary font-mono">
+                      {k}: {v.startsWith("vault:") ? <Lock className="w-3 h-3" /> : "***"}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
           )}
+
           <button
             onClick={handleAdd}
-            disabled={!newName || !newCommand}
+            disabled={!canSubmit}
             className="px-4 py-2 rounded-md text-[13px] font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
           >
             Dock Ship
@@ -448,10 +1212,15 @@ function Servers() {
                       <ChevronRight className="w-3.5 h-3.5" />
                     )}
                   </button>
-                  <div>
-                    <div className="text-[13px] font-medium text-text-primary">{s.name}</div>
-                    <div className="text-[12px] text-text-muted font-mono mt-0.5">
-                      {s.command}
+                  <div className="flex items-center gap-2">
+                    {s.is_remote && (
+                      <Globe className="w-3.5 h-3.5 text-accent shrink-0" />
+                    )}
+                    <div>
+                      <div className="text-[13px] font-medium text-text-primary">{s.name}</div>
+                      <div className="text-[12px] text-text-muted font-mono mt-0.5">
+                        {s.command}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -478,9 +1247,10 @@ function Servers() {
                 </div>
               </div>
 
-              {/* Tool filter panel */}
+              {/* Expanded panels */}
               {expandedServer === s.name && (
                 <div className="px-4 pb-4 animate-fade-in">
+                  <ServerConfigPanel serverName={s.name} source={s.source} />
                   <ToolFilterPanel serverName={s.name} />
                 </div>
               )}

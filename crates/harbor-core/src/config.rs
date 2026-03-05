@@ -20,18 +20,28 @@ pub struct HarborConfig {
 pub struct HarborSettings {
     #[serde(default = "default_gateway_port")]
     pub gateway_port: u16,
+    #[serde(default = "default_gateway_host")]
+    pub gateway_host: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gateway_token: Option<String>,
 }
 
 impl Default for HarborSettings {
     fn default() -> Self {
         Self {
             gateway_port: default_gateway_port(),
+            gateway_host: default_gateway_host(),
+            gateway_token: None,
         }
     }
 }
 
 fn default_gateway_port() -> u16 {
     3100
+}
+
+fn default_gateway_host() -> String {
+    "127.0.0.1".to_string()
 }
 
 /// Configuration for a single MCP server managed by Harbor
@@ -41,8 +51,9 @@ pub struct ServerConfig {
     #[serde(default)]
     pub source: Option<String>,
 
-    /// Command to execute
-    pub command: String,
+    /// Command to execute (for stdio servers). Mutually exclusive with `url`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
 
     /// Arguments to pass to the command
     #[serde(default)]
@@ -51,6 +62,15 @@ pub struct ServerConfig {
     /// Environment variables (values may use "vault:key_name" references)
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+
+    /// URL for remote HTTP MCP servers. Mutually exclusive with `command`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+
+    /// Custom HTTP headers for remote servers (e.g., auth tokens).
+    /// Values may use "vault:key_name" references, resolved at runtime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headers: Option<BTreeMap<String, String>>,
 
     /// Whether this server is enabled
     #[serde(default = "default_true")]
@@ -82,6 +102,24 @@ fn default_true() -> bool {
 }
 
 impl ServerConfig {
+    /// Returns true if this is a remote HTTP server (has url, no command).
+    pub fn is_remote(&self) -> bool {
+        self.url.is_some()
+    }
+
+    /// Validate that exactly one of `command` or `url` is set.
+    pub fn validate(&self) -> Result<()> {
+        match (&self.command, &self.url) {
+            (Some(_), Some(_)) => Err(HarborError::ConfigParse(
+                "Server cannot have both 'command' and 'url'".to_string(),
+            )),
+            (None, None) => Err(HarborError::ConfigParse(
+                "Server must have either 'command' or 'url'".to_string(),
+            )),
+            _ => Ok(()),
+        }
+    }
+
     /// Check if a tool is allowed by this server's filter rules.
     ///
     /// Resolution order:
@@ -176,9 +214,18 @@ impl HarborConfig {
 
     /// Add a new server to the config
     pub fn add_server(&mut self, name: String, config: ServerConfig) -> Result<()> {
+        config.validate()?;
         if self.servers.contains_key(&name) {
             return Err(HarborError::ServerAlreadyExists { name });
         }
+        self.servers.insert(name, config);
+        Ok(())
+    }
+
+    /// Add or update a server in the config (upsert).
+    /// If the server already exists, it is replaced with the new config.
+    pub fn upsert_server(&mut self, name: String, config: ServerConfig) -> Result<()> {
+        config.validate()?;
         self.servers.insert(name, config);
         Ok(())
     }
@@ -250,9 +297,11 @@ mod tests {
         let mut config = HarborConfig::default();
         let server = ServerConfig {
             source: None,
-            command: "npx".to_string(),
+            command: Some("npx".to_string()),
             args: vec!["-y".to_string(), "test-server".to_string()],
             env: BTreeMap::new(),
+            url: None,
+            headers: None,
             enabled: true,
             auto_start: false,
             hosts: BTreeMap::new(),
@@ -267,9 +316,11 @@ mod tests {
         // Duplicate should fail
         let server2 = ServerConfig {
             source: None,
-            command: "node".to_string(),
+            command: Some("node".to_string()),
             args: vec![],
             env: BTreeMap::new(),
+            url: None,
+            headers: None,
             enabled: true,
             auto_start: false,
             hosts: BTreeMap::new(),
@@ -292,9 +343,11 @@ mod tests {
 
         let server = ServerConfig {
             source: None,
-            command: "npx".to_string(),
+            command: Some("npx".to_string()),
             args: vec![],
             env: BTreeMap::new(),
+            url: None,
+            headers: None,
             enabled: true,
             auto_start: false,
             hosts,
@@ -314,9 +367,11 @@ mod tests {
     fn test_server(command: &str) -> ServerConfig {
         ServerConfig {
             source: None,
-            command: command.to_string(),
+            command: Some(command.to_string()),
             args: vec![],
             env: BTreeMap::new(),
+            url: None,
+            headers: None,
             enabled: true,
             auto_start: false,
             hosts: BTreeMap::new(),
@@ -369,7 +424,10 @@ mod tests {
 
         let loaded = HarborConfig::load_from(&path).unwrap();
         assert!(loaded.servers.contains_key("test-server"));
-        assert_eq!(loaded.servers["test-server"].command, "echo");
+        assert_eq!(
+            loaded.servers["test-server"].command,
+            Some("echo".to_string())
+        );
         assert!(loaded.servers["test-server"].auto_start);
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -393,7 +451,7 @@ mod tests {
         config.add_server("my-server".to_string(), server).unwrap();
 
         let server = config.get_server("my-server").unwrap();
-        assert_eq!(server.command, "node");
+        assert_eq!(server.command, Some("node".to_string()));
 
         assert!(config.get_server("nonexistent").is_err());
     }
@@ -545,5 +603,75 @@ mod tests {
             &vec!["tool_c".to_string()]
         );
         assert_eq!(s.tool_hosts["claude"], vec!["tool_a".to_string()]);
+    }
+
+    fn test_remote_server(url: &str) -> ServerConfig {
+        ServerConfig {
+            source: None,
+            command: None,
+            args: vec![],
+            env: BTreeMap::new(),
+            url: Some(url.to_string()),
+            headers: None,
+            enabled: true,
+            auto_start: false,
+            hosts: BTreeMap::new(),
+            tool_allowlist: None,
+            tool_blocklist: None,
+            tool_hosts: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_validate_stdio_server() {
+        let s = test_server("npx");
+        assert!(s.validate().is_ok());
+        assert!(!s.is_remote());
+    }
+
+    #[test]
+    fn test_validate_remote_server() {
+        let s = test_remote_server("https://mcp.example.com/mcp");
+        assert!(s.validate().is_ok());
+        assert!(s.is_remote());
+    }
+
+    #[test]
+    fn test_validate_both_command_and_url_fails() {
+        let mut s = test_server("npx");
+        s.url = Some("https://example.com".to_string());
+        assert!(s.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_neither_command_nor_url_fails() {
+        let mut s = test_server("npx");
+        s.command = None;
+        assert!(s.validate().is_err());
+    }
+
+    #[test]
+    fn test_remote_server_roundtrip_toml() {
+        let mut config = HarborConfig::default();
+        let mut server = test_remote_server("https://mcp.example.com/v1/mcp");
+        let mut headers = BTreeMap::new();
+        headers.insert(
+            "Authorization".to_string(),
+            "Bearer vault:my_api_key".to_string(),
+        );
+        server.headers = Some(headers);
+        config
+            .add_server("remote-test".to_string(), server)
+            .unwrap();
+
+        let serialized = toml::to_string_pretty(&config).unwrap();
+        let deserialized: HarborConfig = toml::from_str(&serialized).unwrap();
+        let s = &deserialized.servers["remote-test"];
+        assert!(s.command.is_none());
+        assert_eq!(s.url.as_deref(), Some("https://mcp.example.com/v1/mcp"));
+        assert_eq!(
+            s.headers.as_ref().unwrap()["Authorization"],
+            "Bearer vault:my_api_key"
+        );
     }
 }

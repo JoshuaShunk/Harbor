@@ -1,0 +1,98 @@
+---
+title: "OAuth Authentication"
+sidebarTitle: "OAuth"
+description: "How Harbor handles OAuth flows for MCP servers."
+---
+
+Many MCP servers require OAuth authorization to access third-party APIs. Harbor has built-in OAuth support that handles the entire flow — opening your browser, waiting for the callback, exchanging codes for tokens, and storing everything securely.
+
+## Supported Providers
+
+| Provider | Servers | Flow |
+|----------|---------|------|
+| Slack | Slack | OAuth 2.0 |
+| Atlassian | Atlassian (Jira, Confluence) | OAuth 2.0 + PKCE |
+| Linear | Linear | OAuth 2.0 + PKCE |
+| Notion | Notion | OAuth 2.0 |
+| Sentry | Sentry | OAuth 2.0 |
+| Figma | Figma | OAuth 2.0 + PKCE |
+| Stripe | Stripe | OAuth 2.0 |
+| Vercel | Vercel | OAuth 2.0 |
+| Supabase | Supabase | OAuth 2.0 + PKCE |
+| Cloudflare | Cloudflare | OAuth 2.0 + PKCE |
+| Neon | Neon | OAuth 2.0 + PKCE |
+| Google | Google Workspace | OAuth 2.0 + PKCE |
+
+## How It Works
+
+### CLI Flow
+
+When you dock a native server that requires OAuth:
+
+```sh
+harbor dock slack
+```
+
+1. Harbor starts a local callback server on an ephemeral port
+2. Your browser opens to the provider's authorization page
+3. You authorize Harbor
+4. The browser redirects back to `http://127.0.0.1:<port>/callback`
+5. Harbor exchanges the authorization code for tokens
+6. Tokens are stored in the vault and the server is docked
+
+The flow times out after 5 minutes if authorization is not completed.
+
+### Desktop Flow
+
+In the desktop app, click **Charter** on any OAuth server in the Native Fleet or Settings page. The same browser-based flow opens, and the desktop app receives the callback automatically.
+
+## Token Storage
+
+OAuth tokens are stored securely in the vault (OS keychain) with these keys:
+
+- `oauth:<provider>:access_token` — The access token
+- `oauth:<provider>:refresh_token` — The refresh token (if provided)
+- `oauth:<provider>:client_id` — The client ID used
+- `oauth:<provider>:client_secret` — The client secret used
+
+Native servers reference these automatically via `vault:` prefixes in their environment variables or HTTP headers.
+
+## Token Refresh
+
+For remote HTTP servers, the gateway automatically handles token refresh. If a request returns a `401 Unauthorized`, the gateway:
+
+1. Uses the stored refresh token to obtain a new access token
+2. Updates the vault with the new tokens
+3. Retries the request with the fresh token
+
+## Custom Credentials
+
+By default, Harbor uses its own OAuth app credentials for each provider. If you prefer to use your own:
+
+### CLI
+
+```sh
+harbor chest set oauth:slack:client_id your-client-id
+harbor chest set oauth:slack:client_secret your-client-secret
+```
+
+### Desktop
+
+Go to **Helm > Papers**, click the gear icon next to a provider, and select **Own Papers** to enter your custom client ID and secret.
+
+## Re-authorization
+
+If tokens expire or become invalid:
+
+### CLI
+
+Undock and re-dock the server:
+
+```sh
+harbor undock --name slack
+harbor dock slack
+```
+
+### Desktop
+
+Click the gear icon next to the provider in **Helm > Papers** and select **Re-charter**.

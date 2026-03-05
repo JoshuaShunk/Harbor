@@ -3,8 +3,6 @@ import { Anchor, Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronUp } fr
 import {
   oauthStartCharter,
   oauthSetCustomCredentials,
-  addServer,
-  getGdriveCredentialPaths,
   type OAuthProviderInfo,
 } from "../lib/tauri";
 
@@ -18,12 +16,6 @@ interface OAuthCharterModalProps {
   onClose: () => void;
 }
 
-const OAUTH_SERVER_CONFIG: Record<string, { pkg: string; envVar: string }> = {
-  github: { pkg: "@modelcontextprotocol/server-github", envVar: "GITHUB_PERSONAL_ACCESS_TOKEN" },
-  google: { pkg: "@modelcontextprotocol/server-gdrive", envVar: "GOOGLE_ACCESS_TOKEN" },
-  slack: { pkg: "@modelcontextprotocol/server-slack", envVar: "SLACK_BOT_TOKEN" },
-};
-
 function OAuthCharterModal({
   provider,
   serverName,
@@ -36,7 +28,6 @@ function OAuthCharterModal({
   const [showCustom, setShowCustom] = useState(false);
   const [customClientId, setCustomClientId] = useState("");
   const [customSecret, setCustomSecret] = useState("");
-  const [docking, setDocking] = useState(false);
 
   const handleCharter = async () => {
     setState("waiting");
@@ -55,36 +46,6 @@ function OAuthCharterModal({
     } catch (e) {
       setState("error");
       setError(String(e));
-    }
-  };
-
-  const handleDock = async () => {
-    setDocking(true);
-    try {
-      const config = OAUTH_SERVER_CONFIG[provider.id];
-      const pkg = config?.pkg ?? serverRegistryName;
-      const name = serverName.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-
-      let env: Record<string, string>;
-      if (provider.id === "google") {
-        const [oauthPath, credsPath] = await getGdriveCredentialPaths();
-        env = { GDRIVE_OAUTH_PATH: oauthPath, GDRIVE_CREDENTIALS_PATH: credsPath };
-      } else if (provider.id === "slack") {
-        env = {
-          SLACK_BOT_TOKEN: `vault:oauth:slack:access_token`,
-          SLACK_TEAM_ID: `vault:oauth:slack:team_id`,
-        };
-      } else {
-        const envVar = config?.envVar ?? `${provider.id.toUpperCase()}_TOKEN`;
-        env = { [envVar]: `vault:oauth:${provider.id}:access_token` };
-      }
-
-      await addServer(name, "npx", ["-y", pkg], env);
-      onComplete();
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setDocking(false);
     }
   };
 
@@ -216,11 +177,10 @@ function OAuthCharterModal({
                 Close
               </button>
               <button
-                onClick={handleDock}
-                disabled={docking}
-                className="px-4 py-1.5 rounded-md text-[12px] font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-40 transition-colors"
+                onClick={onComplete}
+                className="px-4 py-1.5 rounded-md text-[12px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
               >
-                {docking ? "Docking..." : "Dock Ship"}
+                Dock Ship
               </button>
             </>
           )}
