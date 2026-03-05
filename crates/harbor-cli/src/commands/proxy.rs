@@ -1,6 +1,8 @@
 use clap::Args;
 use harbor_core::HarborError;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::Mutex;
@@ -100,6 +102,26 @@ fn meta_tool_harbor_call() -> serde_json::Value {
     })
 }
 
+const MAX_TOOL_NAME_LEN: usize = 64;
+
+/// Shorten a tool name to fit within MAX_TOOL_NAME_LEN using truncation + hash suffix.
+/// Returns the shortened name if truncation was needed, or None if the name already fits.
+fn shorten_tool_name(name: &str) -> Option<String> {
+    if name.len() <= MAX_TOOL_NAME_LEN {
+        return None;
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(name.as_bytes());
+    let hash = format!("{:x}", hasher.finalize());
+    let suffix = &hash[..8];
+    // budget: 64 total - 1 underscore - 8 hash chars = 55 for the prefix
+    let budget = MAX_TOOL_NAME_LEN - 1 - 8;
+    let short = format!("{}_{}", &name[..budget], suffix);
+    Some(short)
+}
+
+type AliasMap = Arc<Mutex<HashMap<String, String>>>;
+
 /// Write a JSON-RPC message to stdout (shared between main loop and poller).
 async fn write_stdout(
     stdout: &Arc<Mutex<tokio::io::Stdout>>,
@@ -122,6 +144,7 @@ pub async fn run(args: ProxyArgs) -> Result<(), HarborError> {
     let host = args.host;
 
     let client = reqwest::Client::new();
+    let aliases: AliasMap = Arc::new(Mutex::new(HashMap::new()));
 
     // Don't exit if gateway is down — stay alive so Claude Code doesn't drop us.
     // tools/list will return empty and tools/call will return errors until the gateway starts.
@@ -197,7 +220,7 @@ pub async fn run(args: ProxyArgs) -> Result<(), HarborError> {
             continue;
         }
 
-        let response = handle_request(&client, &base_url, &host, &request).await;
+        let response = handle_request(&client, &base_url, &host, &request, &aliases).await;
 
         let out = serde_json::to_string(&response).unwrap_or_default();
         write_stdout(&stdout, &out).await?;
@@ -211,6 +234,7 @@ async fn handle_request(
     base_url: &str,
     host: &str,
     request: &JsonRpcRequest,
+    aliases: &AliasMap,
 ) -> JsonRpcResponse {
     match request.method.as_str() {
         "initialize" => {
@@ -242,17 +266,32 @@ async fn handle_request(
                     Ok(body) => {
                         let mut tools = body.get("tools").cloned().unwrap_or(serde_json::json!([]));
                         // Normalize tool entries for MCP spec compliance
+                        let mut new_aliases = HashMap::new();
                         if let Some(arr) = tools.as_array_mut() {
                             for tool in arr.iter_mut() {
                                 if let Some(obj) = tool.as_object_mut() {
-                                    // Strip "server" — Harbor routing field, not MCP spec
                                     obj.remove("server");
-                                    // Rename "input_schema" → "inputSchema" (MCP spec uses camelCase)
                                     if let Some(schema) = obj.remove("input_schema") {
                                         obj.insert("inputSchema".to_string(), schema);
                                     }
+                                    // Shorten names that exceed the 64-char API limit
+                                    if let Some(name) =
+                                        obj.get("name").and_then(|n| n.as_str()).map(String::from)
+                                    {
+                                        if let Some(short) = shorten_tool_name(&name) {
+                                            new_aliases.insert(short.clone(), name);
+                                            obj.insert(
+                                                "name".to_string(),
+                                                serde_json::Value::String(short),
+                                            );
+                                        }
+                                    }
                                 }
                             }
+                        }
+                        if !new_aliases.is_empty() {
+                            let mut map = aliases.lock().await;
+                            map.extend(new_aliases);
                         }
                         tools.as_array().cloned().unwrap_or_default()
                     }
@@ -284,13 +323,25 @@ async fn handle_request(
                 "harbor_tools" => handle_harbor_tools(client, base_url, host, request).await,
                 "harbor_call" => handle_harbor_call(client, base_url, request).await,
                 _ => {
+                    // Reverse-map aliased tool names back to originals
+                    let original_name = {
+                        let map = aliases.lock().await;
+                        map.get(tool_name).cloned()
+                    };
+                    let mut params = request.params.clone().unwrap_or(serde_json::json!({}));
+                    if let Some(orig) = original_name {
+                        if let Some(obj) = params.as_object_mut() {
+                            obj.insert("name".to_string(), serde_json::Value::String(orig));
+                        }
+                    }
+
                     // Forward tool call to gateway
                     let url = format!("{base_url}/mcp");
                     let gateway_request = serde_json::json!({
                         "jsonrpc": "2.0",
                         "id": request.id,
                         "method": "tools/call",
-                        "params": request.params,
+                        "params": params,
                     });
 
                     match client.post(&url).json(&gateway_request).send().await {
