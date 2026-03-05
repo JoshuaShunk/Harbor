@@ -1,15 +1,12 @@
 import { useEffect, useState } from "react";
 import { Plus, X, Trash2, Zap, Lock, ChevronDown, ChevronRight, RefreshCw, Globe, Monitor, FolderOpen, FileText, Search } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
-import StatusBadge from "../components/StatusBadge";
-import type { Status } from "../components/StatusBadge";
 import {
   getStatus,
   addServer,
   removeServer,
   toggleServer,
   getToolFilters,
-  setToolAllowlist,
   setToolBlocklist,
   discoverTools,
   getServerExtraArgs,
@@ -75,12 +72,6 @@ function ToolFilterPanel({ serverName }: { serverName: string }) {
   const isToolBlocked = (toolName: string): boolean => {
     const blocklist = filters?.tool_blocklist ?? [];
     return blocklist.includes(toolName);
-  };
-
-  const isToolAllowed = (toolName: string): boolean => {
-    const allowlist = filters?.tool_allowlist;
-    if (!allowlist) return true; // no allowlist = all allowed
-    return allowlist.includes(toolName);
   };
 
   const handleToggleTool = async (toolName: string) => {
@@ -826,19 +817,11 @@ function EnvVarField({
   );
 }
 
-function ServerConfigPanel({ serverName, source }: { serverName: string; source: string | null }) {
-  const isNative = source?.startsWith("native:");
-
+function ServerConfigPanel({ serverName }: { serverName: string }) {
   return (
     <>
-      {/* Registry config schema (available for all servers) */}
       <RegistryConfigSchemaSection serverName={serverName} />
-      {/* Native servers get the ExtraArgs system, others get generic args editor */}
-      {isNative ? (
-        <ServerArgsPanel serverName={serverName} />
-      ) : (
-        <ServerArgsPanel serverName={serverName} />
-      )}
+      <ServerArgsPanel serverName={serverName} />
     </>
   );
 }
@@ -1250,7 +1233,7 @@ function Servers() {
               {/* Expanded panels */}
               {expandedServer === s.name && (
                 <div className="px-4 pb-4 animate-fade-in">
-                  <ServerConfigPanel serverName={s.name} source={s.source} />
+                  <ServerConfigPanel serverName={s.name} />
                   <ToolFilterPanel serverName={s.name} />
                 </div>
               )}

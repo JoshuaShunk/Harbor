@@ -157,7 +157,7 @@ function Lighthouse() {
 
   const [exported, setExported] = useState(false);
 
-  const exportLogs = useCallback(() => {
+  const exportLogs = () => {
     if (logs.length === 0) return;
     const content = logs.map((e) => `${e.timestamp} ${e.level.padEnd(5)} ${e.message}`).join("\n");
     const blob = new Blob([content], { type: "text/plain" });
@@ -169,7 +169,7 @@ function Lighthouse() {
     URL.revokeObjectURL(url);
     setExported(true);
     setTimeout(() => setExported(false), 1500);
-  }, [logs]);
+  };
 
   const displayPort = status?.gateway_port ?? 3100;
   const displayHost = exposed ? (status?.local_ip ?? "0.0.0.0") : "127.0.0.1";

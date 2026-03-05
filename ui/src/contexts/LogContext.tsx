@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
 
 export interface LogEntry {
@@ -26,8 +26,6 @@ export function useGatewayLogs() {
 
 export function LogProvider({ children }: { children: ReactNode }) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const logsRef = useRef(logs);
-  logsRef.current = logs;
 
   useEffect(() => {
     let cancelled = false;

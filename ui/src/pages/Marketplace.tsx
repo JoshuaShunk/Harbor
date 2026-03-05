@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Search, ExternalLink, BadgeCheck, Package, Anchor, ChevronDown, Lock, Check, Ship, Key, FolderOpen, X, FileText, Globe } from "lucide-react";
+import { Search, ExternalLink, BadgeCheck, Anchor, ChevronDown, Lock, Check, Ship, Key, FolderOpen, X, FileText, Globe } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { marketplaceSearch, oauthGetStatus, addServer, getGdriveCredentialPaths, catalogList, dockNative, getStatus, vaultSet, type MarketplaceServer, type OAuthProviderInfo, type NativeServerInfo } from "../lib/tauri";
 import StatusBadge from "../components/StatusBadge";
