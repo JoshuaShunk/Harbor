@@ -266,21 +266,24 @@ pub fn extract_and_replace(tarball_path: &Path, target_binary: &Path) -> crate::
         target_binary.to_path_buf()
     };
 
-    // Backup current binary
+    // Move current binary out of the way first (macOS kills processes that
+    // overwrite their own running binary, but allows renaming it).
     let backup_path = target_binary.with_extension("bak");
     if target_binary.exists() {
-        std::fs::copy(&target_binary, &backup_path)?;
+        std::fs::rename(&target_binary, &backup_path).map_err(|e| HarborError::ConnectorError {
+            host: "update".into(),
+            reason: format!("Failed to move current binary aside: {e}"),
+        })?;
     }
 
-    // Replace: try rename (atomic on same filesystem), fall back to copy
+    // Place new binary at the original path
     match std::fs::rename(&extracted_binary, &target_binary) {
         Ok(()) => {}
         Err(_) => {
+            // Cross-device: fall back to copy (safe now since original is moved)
             std::fs::copy(&extracted_binary, &target_binary).map_err(|e| {
                 // Restore backup on failure
-                if backup_path.exists() {
-                    let _ = std::fs::rename(&backup_path, &target_binary);
-                }
+                let _ = std::fs::rename(&backup_path, &target_binary);
                 HarborError::Io(e)
             })?;
             let _ = std::fs::remove_file(&extracted_binary);
