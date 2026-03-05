@@ -125,9 +125,7 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
             supports_pkce: true,
             requires_https_redirect: false,
             uses_user_scope: false,
-            registration_endpoint: Some(
-                "https://cf.mcp.atlassian.com/v1/register".into(),
-            ),
+            registration_endpoint: Some("https://cf.mcp.atlassian.com/v1/register".into()),
         },
         OAuthProvider {
             id: "linear".into(),
@@ -179,9 +177,7 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
             supports_pkce: true,
             requires_https_redirect: false,
             uses_user_scope: false,
-            registration_endpoint: Some(
-                "https://api.figma.com/v1/oauth/mcp/register".into(),
-            ),
+            registration_endpoint: Some("https://api.figma.com/v1/oauth/mcp/register".into()),
         },
         OAuthProvider {
             id: "stripe".into(),
@@ -194,9 +190,7 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
             supports_pkce: true,
             requires_https_redirect: false,
             uses_user_scope: false,
-            registration_endpoint: Some(
-                "https://access.stripe.com/mcp/oauth2/register".into(),
-            ),
+            registration_endpoint: Some("https://access.stripe.com/mcp/oauth2/register".into()),
         },
         OAuthProvider {
             id: "vercel".into(),
@@ -209,9 +203,7 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
             supports_pkce: true,
             requires_https_redirect: false,
             uses_user_scope: false,
-            registration_endpoint: Some(
-                "https://vercel.com/api/login/oauth/register".into(),
-            ),
+            registration_endpoint: Some("https://vercel.com/api/login/oauth/register".into()),
         },
         OAuthProvider {
             id: "supabase".into(),
@@ -239,9 +231,7 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
             supports_pkce: true,
             requires_https_redirect: false,
             uses_user_scope: false,
-            registration_endpoint: Some(
-                "https://bindings.mcp.cloudflare.com/register".into(),
-            ),
+            registration_endpoint: Some("https://bindings.mcp.cloudflare.com/register".into()),
         },
         OAuthProvider {
             id: "neon".into(),
@@ -254,9 +244,7 @@ pub fn builtin_providers() -> Vec<OAuthProvider> {
             supports_pkce: true,
             requires_https_redirect: false,
             uses_user_scope: false,
-            registration_endpoint: Some(
-                "https://mcp.neon.tech/api/register".into(),
-            ),
+            registration_endpoint: Some("https://mcp.neon.tech/api/register".into()),
         },
     ]
 }
@@ -473,9 +461,7 @@ async fn dynamic_register(
         .json(&body)
         .send()
         .await
-        .map_err(|e| {
-            HarborError::OAuthError(format!("Dynamic client registration failed: {e}"))
-        })?;
+        .map_err(|e| HarborError::OAuthError(format!("Dynamic client registration failed: {e}")))?;
 
     let status = response.status();
     let body_text = response.text().await.map_err(|e| {
@@ -501,10 +487,7 @@ async fn dynamic_register(
     Vault::set(&format!("oauth:{provider_id}:client_id"), &client_id)?;
 
     if let Some(secret) = resp["client_secret"].as_str() {
-        Vault::set(
-            &format!("oauth:{provider_id}:client_secret"),
-            secret,
-        )?;
+        Vault::set(&format!("oauth:{provider_id}:client_secret"), secret)?;
     }
 
     info!(

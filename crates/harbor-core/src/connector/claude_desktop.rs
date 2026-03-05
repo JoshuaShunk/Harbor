@@ -72,19 +72,17 @@ impl Connector for ClaudeDesktopConnector {
                 .join("Claude")
                 .join("claude_desktop_config.json")
         } else if cfg!(target_os = "windows") {
-            let appdata =
-                dirs::config_dir().ok_or_else(|| HarborError::ConnectorError {
-                    host: "claude-desktop".to_string(),
-                    reason: "Could not determine APPDATA directory".to_string(),
-                })?;
+            let appdata = dirs::config_dir().ok_or_else(|| HarborError::ConnectorError {
+                host: "claude-desktop".to_string(),
+                reason: "Could not determine APPDATA directory".to_string(),
+            })?;
             appdata.join("Claude").join("claude_desktop_config.json")
         } else {
             // Linux
-            let config =
-                dirs::config_dir().ok_or_else(|| HarborError::ConnectorError {
-                    host: "claude-desktop".to_string(),
-                    reason: "Could not determine config directory".to_string(),
-                })?;
+            let config = dirs::config_dir().ok_or_else(|| HarborError::ConnectorError {
+                host: "claude-desktop".to_string(),
+                reason: "Could not determine config directory".to_string(),
+            })?;
             config.join("Claude").join("claude_desktop_config.json")
         };
         Ok(path)

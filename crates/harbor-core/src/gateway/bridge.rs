@@ -338,7 +338,9 @@ async fn resolve_env_with_refresh(env: &BTreeMap<String, String>) -> BTreeMap<St
                 info!(provider = %provider_id, "OAuth token expired, refreshing before server start");
                 match crate::auth::oauth::refresh_access_token(&provider_id).await {
                     Ok(_) => info!(provider = %provider_id, "OAuth token refreshed"),
-                    Err(e) => warn!(provider = %provider_id, error = %e, "Failed to refresh OAuth token"),
+                    Err(e) => {
+                        warn!(provider = %provider_id, error = %e, "Failed to refresh OAuth token")
+                    }
                 }
             }
         }

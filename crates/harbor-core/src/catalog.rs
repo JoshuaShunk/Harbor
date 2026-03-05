@@ -251,8 +251,7 @@ pub fn catalog() -> Vec<NativeServer> {
         NativeServer {
             id: "google-workspace",
             display_name: "Google Workspace",
-            description:
-                "Google Workspace — Drive, Gmail, Calendar, Sheets, Docs, Chat, and more",
+            description: "Google Workspace — Drive, Gmail, Calendar, Sheets, Docs, Chat, and more",
             command: Some("npx"),
             args: &["-y", "@googleworkspace/cli", "mcp", "-s"],
             url: None,
