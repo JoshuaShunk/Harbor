@@ -1,3 +1,4 @@
+use super::icons;
 use clap::Args;
 use harbor_core::HarborError;
 use serde::{Deserialize, Serialize};
@@ -251,6 +252,7 @@ async fn handle_request(
                     "serverInfo": {
                         "name": format!("harbor-proxy (host: {host})"),
                         "version": env!("CARGO_PKG_VERSION"),
+                        "icons": icons::harbor_server_icons(),
                     },
                     "instructions": concat!(
                         "Harbor aggregates tools from multiple MCP servers through a single proxy. ",
@@ -288,6 +290,10 @@ async fn handle_request(
                                     if let Some(name) =
                                         obj.get("name").and_then(|n| n.as_str()).map(String::from)
                                     {
+                                        // Add per-tool provider icon
+                                        if let Some(tool_icons) = icons::tool_icons_value(&name) {
+                                            obj.insert("icons".to_string(), tool_icons);
+                                        }
                                         if let Some(short) = shorten_tool_name(&name) {
                                             new_aliases.insert(short.clone(), name);
                                             obj.insert(

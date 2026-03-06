@@ -1,5 +1,6 @@
 pub mod add;
 pub mod gateway;
+pub mod icons;
 pub mod list;
 pub mod port;
 pub mod proxy;
