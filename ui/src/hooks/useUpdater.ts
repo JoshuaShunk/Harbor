@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
-
 export type UpdateStatus =
   | "idle"
   | "checking"
@@ -90,7 +89,11 @@ export function useUpdater(checkOnMount = false): UseUpdaterReturn {
   useEffect(() => {
     if (checkOnMount) {
       const timer = setTimeout(() => checkForUpdate(), 2000);
-      return () => clearTimeout(timer);
+      const interval = setInterval(() => checkForUpdate(), 60 * 60 * 1000);
+      return () => {
+        clearTimeout(timer);
+        clearInterval(interval);
+      };
     }
   }, [checkOnMount, checkForUpdate]);
 

@@ -90,11 +90,11 @@ function Hosts() {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <StatusBadge status={hostStatus(h)} />
               <button
                 onClick={() => handleToggleConnect(h.name, h.connected)}
-                className="px-2.5 py-1 rounded-md text-[12px] border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors duration-150"
+                className="px-2.5 py-1 rounded-md text-[12px] border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors duration-150 whitespace-nowrap"
               >
                 {h.connected ? "Cast Off" : "Link"}
               </button>

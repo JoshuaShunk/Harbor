@@ -5,7 +5,7 @@ mod symlink;
 use tauri::menu::{MenuBuilder, MenuItem, MenuItemBuilder, SubmenuBuilder};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Listener, Manager};
-use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::UpdaterExt;
 use tracing_subscriber::prelude::*;
 
@@ -100,25 +100,69 @@ pub fn run() {
                 } else if event.id() == check_updates_item.id() {
                     let handle = app_handle.clone();
                     tauri::async_runtime::spawn(async move {
-                        let msg = match handle.updater() {
+                        match handle.updater() {
                             Ok(updater) => match updater.check().await {
-                                Ok(Some(update)) => format!(
-                                    "A new version (v{}) is available. Go to Settings to update.",
-                                    update.version
-                                ),
-                                Ok(None) => {
-                                    "You're running the latest version of Harbor.".to_string()
+                                Ok(Some(update)) => {
+                                    let version = update.version.clone();
+                                    let h = handle.clone();
+                                    handle
+                                        .dialog()
+                                        .message(format!(
+                                            "A new version (v{version}) is available."
+                                        ))
+                                        .title("Harbor")
+                                        .kind(MessageDialogKind::Info)
+                                        .buttons(MessageDialogButtons::OkCancelCustom(
+                                            "Update & Relaunch".to_string(),
+                                            "Later".to_string(),
+                                        ))
+                                        .show(move |confirmed| {
+                                            if confirmed {
+                                                tauri::async_runtime::spawn(async move {
+                                                    if let Err(e) =
+                                                        update.download_and_install(|_, _| {}, || {}).await
+                                                    {
+                                                        h.dialog()
+                                                            .message(format!(
+                                                                "Update failed: {e}"
+                                                            ))
+                                                            .title("Harbor")
+                                                            .kind(MessageDialogKind::Error)
+                                                            .show(|_| {});
+                                                        return;
+                                                    }
+                                                    let _ =
+                                                        tauri::process::restart(&h.env());
+                                                });
+                                            }
+                                        });
                                 }
-                                Err(e) => format!("Could not check for updates: {e}"),
+                                Ok(None) => {
+                                    handle
+                                        .dialog()
+                                        .message("You're running the latest version of Harbor.")
+                                        .title("Harbor")
+                                        .kind(MessageDialogKind::Info)
+                                        .show(|_| {});
+                                }
+                                Err(e) => {
+                                    handle
+                                        .dialog()
+                                        .message(format!("Could not check for updates: {e}"))
+                                        .title("Harbor")
+                                        .kind(MessageDialogKind::Info)
+                                        .show(|_| {});
+                                }
                             },
-                            Err(e) => format!("Could not check for updates: {e}"),
-                        };
-                        handle
-                            .dialog()
-                            .message(msg)
-                            .title("Harbor")
-                            .kind(MessageDialogKind::Info)
-                            .show(|_| {});
+                            Err(e) => {
+                                handle
+                                    .dialog()
+                                    .message(format!("Could not check for updates: {e}"))
+                                    .title("Harbor")
+                                    .kind(MessageDialogKind::Info)
+                                    .show(|_| {});
+                            }
+                        }
                     });
                 }
             });
