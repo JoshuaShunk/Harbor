@@ -130,7 +130,7 @@ pub fn run() {
                                                             .show(|_| {});
                                                         return;
                                                     }
-                                                    let _ = tauri::process::restart(&h.env());
+                                                    tauri::process::restart(&h.env());
                                                 });
                                             }
                                         });
