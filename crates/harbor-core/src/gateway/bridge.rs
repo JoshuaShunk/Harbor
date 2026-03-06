@@ -275,12 +275,13 @@ impl BridgeManager {
     /// Restart a single server: stop it, refresh env (including token refresh), and start again.
     /// Returns Ok(true) if the server was restarted, Ok(false) if it wasn't running.
     pub async fn restart_server(&self, name: &str, config: &HarborConfig) -> Result<bool> {
-        let server_config = config
-            .servers
-            .get(name)
-            .ok_or_else(|| HarborError::ServerNotRunning {
-                name: name.to_string(),
-            })?;
+        let server_config =
+            config
+                .servers
+                .get(name)
+                .ok_or_else(|| HarborError::ServerNotRunning {
+                    name: name.to_string(),
+                })?;
 
         // Only restart if it's currently running
         {

@@ -159,14 +159,15 @@ impl Gateway {
                 let oauth_servers = stdio_servers_with_oauth(&config);
 
                 for (server_name, provider_id) in &oauth_servers {
-                    if crate::auth::oauth::has_valid_token(provider_id) {
+                    // Proactively restart 5 minutes before expiry to avoid downtime
+                    if crate::auth::oauth::token_valid_for(provider_id, 300) {
                         continue;
                     }
 
                     info!(
                         server = %server_name,
                         provider = %provider_id,
-                        "OAuth token expired for stdio server, restarting with refreshed token"
+                        "OAuth token expiring soon for stdio server, restarting with refreshed token"
                     );
 
                     match refresh_state
@@ -178,11 +179,9 @@ impl Gateway {
                             info!(server = %server_name, "Stdio server restarted with fresh token");
                             // Notify SSE subscribers
                             let tools = refresh_state.bridge_manager.list_tools().await;
-                            let _ = refresh_state
-                                .events_tx
-                                .send(GatewayEvent::ToolsChanged {
-                                    tool_count: tools.len(),
-                                });
+                            let _ = refresh_state.events_tx.send(GatewayEvent::ToolsChanged {
+                                tool_count: tools.len(),
+                            });
                         }
                         Ok(false) => {
                             warn!(server = %server_name, "Server was not running, skipping restart");

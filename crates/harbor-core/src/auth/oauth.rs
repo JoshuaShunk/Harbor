@@ -757,13 +757,19 @@ pub fn get_access_token(provider_id: &str) -> Result<String> {
 }
 
 pub fn has_valid_token(provider_id: &str) -> bool {
+    token_valid_for(provider_id, 0)
+}
+
+/// Check if a token will still be valid after `buffer_secs` seconds.
+/// Used to proactively refresh before expiry.
+pub fn token_valid_for(provider_id: &str, buffer_secs: i64) -> bool {
     if Vault::get(&format!("oauth:{provider_id}:access_token")).is_err() {
         return false;
     }
     // Check expiry if recorded
     if let Ok(expires_str) = Vault::get(&format!("oauth:{provider_id}:expires_at")) {
         if let Ok(expires_at) = expires_str.parse::<i64>() {
-            return chrono::Utc::now().timestamp() < expires_at;
+            return chrono::Utc::now().timestamp() + buffer_secs < expires_at;
         }
     }
     true // No expiry means token doesn't expire (e.g. GitHub)
