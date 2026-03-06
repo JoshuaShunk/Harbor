@@ -100,6 +100,16 @@ impl StdioBridge {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
+        // Prevent the user's local gcloud ADC from leaking a wrong
+        // quota_project_id into MCP server processes. Setting this to a
+        // nonexistent path stops gws (and Google client libraries) from
+        // falling back to ~/.config/gcloud/application_default_credentials.json.
+        // TODO: switch to GOOGLE_CLOUD_QUOTA_PROJECT once gws supports it
+        // (https://github.com/googleworkspace/cli/issues/261)
+        if !resolved_env.contains_key("GOOGLE_APPLICATION_CREDENTIALS") {
+            cmd.env("GOOGLE_APPLICATION_CREDENTIALS", "/dev/null/harbor-no-adc");
+        }
+
         for (key, value) in resolved_env {
             cmd.env(key, value);
         }
