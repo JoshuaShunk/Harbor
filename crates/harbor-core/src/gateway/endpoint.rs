@@ -1,7 +1,7 @@
 use crate::auth::vault::Vault;
 use crate::config::HarborConfig;
 use crate::error::Result;
-use crate::gateway::bridge::{BridgeManager, ToolInfo};
+use crate::gateway::bridge::{stdio_servers_with_oauth, BridgeManager, ToolInfo};
 use crate::gateway::stdio::{JsonRpcRequest, JsonRpcResponse};
 use axum::extract::{ConnectInfo, Query, Request, State};
 use axum::http::StatusCode;
@@ -139,6 +139,62 @@ impl Gateway {
                         "  {}",
                         tool.description.as_deref().unwrap_or("(no description)")
                     );
+                }
+            }
+        });
+
+        // Background task: periodically check OAuth tokens for stdio servers and restart
+        // them when tokens expire. Stdio processes receive tokens as env vars at startup,
+        // so they can't pick up refreshed tokens without a restart.
+        let refresh_state = self.state.clone();
+        tokio::spawn(async move {
+            // Wait for initial server startup to complete
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
+            loop {
+                interval.tick().await;
+
+                let config = refresh_state.config.lock().await.clone();
+                let oauth_servers = stdio_servers_with_oauth(&config);
+
+                for (server_name, provider_id) in &oauth_servers {
+                    if crate::auth::oauth::has_valid_token(provider_id) {
+                        continue;
+                    }
+
+                    info!(
+                        server = %server_name,
+                        provider = %provider_id,
+                        "OAuth token expired for stdio server, restarting with refreshed token"
+                    );
+
+                    match refresh_state
+                        .bridge_manager
+                        .restart_server(server_name, &config)
+                        .await
+                    {
+                        Ok(true) => {
+                            info!(server = %server_name, "Stdio server restarted with fresh token");
+                            // Notify SSE subscribers
+                            let tools = refresh_state.bridge_manager.list_tools().await;
+                            let _ = refresh_state
+                                .events_tx
+                                .send(GatewayEvent::ToolsChanged {
+                                    tool_count: tools.len(),
+                                });
+                        }
+                        Ok(false) => {
+                            warn!(server = %server_name, "Server was not running, skipping restart");
+                        }
+                        Err(e) => {
+                            warn!(
+                                server = %server_name,
+                                error = %e,
+                                "Failed to restart stdio server after token refresh"
+                            );
+                        }
+                    }
                 }
             }
         });

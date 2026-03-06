@@ -272,6 +272,38 @@ impl BridgeManager {
         bridge.send(request).await
     }
 
+    /// Restart a single server: stop it, refresh env (including token refresh), and start again.
+    /// Returns Ok(true) if the server was restarted, Ok(false) if it wasn't running.
+    pub async fn restart_server(&self, name: &str, config: &HarborConfig) -> Result<bool> {
+        let server_config = config
+            .servers
+            .get(name)
+            .ok_or_else(|| HarborError::ServerNotRunning {
+                name: name.to_string(),
+            })?;
+
+        // Only restart if it's currently running
+        {
+            let bridges = self.bridges.lock().await;
+            if !bridges.contains_key(name) {
+                return Ok(false);
+            }
+        }
+
+        // Stop the server
+        self.stop_server(name).await?;
+
+        // Resolve env with fresh tokens
+        let resolved_env = resolve_env_with_refresh(&server_config.env).await;
+
+        // Start it again
+        self.start_server(name, server_config, &resolved_env)
+            .await?;
+
+        info!(server = %name, "Server restarted with refreshed credentials");
+        Ok(true)
+    }
+
     /// Reload: re-read config, start new servers, stop removed/disabled ones.
     /// Returns the names of servers that were started or stopped.
     pub async fn reload(&self, config: &HarborConfig) -> Result<(Vec<String>, Vec<String>)> {
@@ -327,6 +359,24 @@ impl Default for BridgeManager {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Find stdio servers that use OAuth tokens in their env vars.
+/// Returns a list of (server_name, provider_id) pairs.
+pub fn stdio_servers_with_oauth(config: &HarborConfig) -> Vec<(String, String)> {
+    let mut result = Vec::new();
+    for (name, server_config) in &config.servers {
+        if !server_config.enabled || server_config.is_remote() {
+            continue;
+        }
+        for value in server_config.env.values() {
+            if let Some(provider_id) = extract_oauth_provider_from_env(value) {
+                result.push((name.clone(), provider_id));
+                break; // one provider per server is enough
+            }
+        }
+    }
+    result
 }
 
 /// Refresh any expired OAuth tokens referenced in env vars, then resolve vault references.
