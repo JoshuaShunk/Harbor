@@ -251,7 +251,17 @@ async fn handle_request(
                     "serverInfo": {
                         "name": format!("harbor-proxy (host: {host})"),
                         "version": env!("CARGO_PKG_VERSION"),
-                    }
+                    },
+                    "instructions": concat!(
+                        "Harbor aggregates tools from multiple MCP servers through a single proxy. ",
+                        "Tools are forwarded to their upstream MCP server with arguments passed through as-is. ",
+                        "Two meta-tools are always available:\n",
+                        "- harbor_tools: Lists all tools currently available from Harbor's servers. ",
+                        "Use this to discover tools that may have been added or removed since the session started.\n",
+                        "- harbor_call: Calls any tool by name with arguments. ",
+                        "Use this as a fallback if a tool isn't in your tool index, or to call tools discovered via harbor_tools.\n",
+                        "Tools may change at runtime as servers are added, removed, or reloaded.",
+                    )
                 }),
             )
         }
