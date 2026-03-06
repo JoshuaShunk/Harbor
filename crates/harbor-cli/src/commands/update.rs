@@ -16,7 +16,7 @@ pub struct UpdateArgs {
 }
 
 pub async fn run(args: UpdateArgs) -> Result<(), HarborError> {
-    // Block self-update for managed installs (Homebrew, CI)
+    // Block self-update for managed installs (Homebrew, Desktop app, CI)
     if let Some(manager) = updater::is_managed_install() {
         if manager == "Homebrew" {
             println!(
@@ -25,6 +25,15 @@ pub async fn run(args: UpdateArgs) -> Result<(), HarborError> {
                 manager
             );
             println!("  Run: {}", "brew upgrade harbor".yellow());
+        } else if manager == "Harbor Desktop" {
+            println!(
+                "{} This CLI is managed by the Harbor desktop app.",
+                "info:".blue().bold()
+            );
+            println!(
+                "  Update through {} instead.",
+                "Harbor → Helm → Dry Dock".cyan()
+            );
         } else {
             println!(
                 "{} Self-update is disabled in {} environments.",

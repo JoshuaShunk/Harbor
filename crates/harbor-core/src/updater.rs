@@ -276,13 +276,23 @@ pub fn extract_and_replace(tarball_path: &Path) -> crate::Result<()> {
 
 // --- Install detection ---
 
-/// Check if Harbor was installed via a package manager (Homebrew, etc.).
+/// Check if Harbor was installed via a package manager or desktop app bundle.
 /// Self-update should be disabled in these cases to avoid conflicts.
 pub fn is_managed_install() -> Option<&'static str> {
     if let Ok(exe) = std::env::current_exe() {
         let path = exe.to_string_lossy();
         if path.contains("/Cellar/") || path.contains("/homebrew/") {
             return Some("Homebrew");
+        }
+        // Detect if running from inside a macOS .app bundle or symlinked from one
+        if path.contains(".app/Contents/") {
+            return Some("Harbor Desktop");
+        }
+        // Check if the exe is a symlink pointing into a .app bundle
+        if let Ok(resolved) = std::fs::read_link(std::env::current_exe().unwrap_or_default()) {
+            if resolved.to_string_lossy().contains(".app/Contents/") {
+                return Some("Harbor Desktop");
+            }
         }
     }
     if std::env::var_os("CI").is_some() {

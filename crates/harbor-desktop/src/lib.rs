@@ -1,5 +1,6 @@
 mod commands;
 mod logging;
+mod symlink;
 
 use tauri::menu::{MenuBuilder, MenuItem, MenuItemBuilder, SubmenuBuilder};
 use tauri::tray::TrayIconBuilder;
@@ -44,6 +45,9 @@ pub fn run() {
                     }
                 });
             }
+
+            // Install CLI symlink so `harbor` in the terminal uses the bundled binary
+            symlink::install_cli_symlink(app.handle());
 
             // Build native macOS application menu
             let settings_item = MenuItemBuilder::with_id("settings", "Settings...")

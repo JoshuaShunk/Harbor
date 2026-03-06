@@ -192,6 +192,7 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           releaseDraft: true
           prerelease: false
+          includeUpdaterJson: true
           tauriScript: npx tauri
           projectPath: crates/harbor-desktop
           args: --target ${{ matrix.target }}
