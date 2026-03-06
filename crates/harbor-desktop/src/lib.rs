@@ -119,20 +119,18 @@ pub fn run() {
                                         .show(move |confirmed| {
                                             if confirmed {
                                                 tauri::async_runtime::spawn(async move {
-                                                    if let Err(e) =
-                                                        update.download_and_install(|_, _| {}, || {}).await
+                                                    if let Err(e) = update
+                                                        .download_and_install(|_, _| {}, || {})
+                                                        .await
                                                     {
                                                         h.dialog()
-                                                            .message(format!(
-                                                                "Update failed: {e}"
-                                                            ))
+                                                            .message(format!("Update failed: {e}"))
                                                             .title("Harbor")
                                                             .kind(MessageDialogKind::Error)
                                                             .show(|_| {});
                                                         return;
                                                     }
-                                                    let _ =
-                                                        tauri::process::restart(&h.env());
+                                                    let _ = tauri::process::restart(&h.env());
                                                 });
                                             }
                                         });
