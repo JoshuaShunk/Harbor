@@ -21,7 +21,7 @@ RUN cargo build --release -p harbor-cli
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
-    ca-certificates \
+    ca-certificates libdbus-1-3 curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/release/harbor /usr/local/bin/harbor
