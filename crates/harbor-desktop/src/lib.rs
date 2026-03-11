@@ -281,6 +281,8 @@ pub fn run() {
             commands::publish_status,
             commands::get_request_logs,
             commands::clear_request_logs,
+            commands::fleet_status,
+            commands::fleet_pull,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Harbor");

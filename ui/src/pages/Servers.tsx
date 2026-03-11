@@ -1200,7 +1200,19 @@ function Servers() {
                       <Globe className="w-3.5 h-3.5 text-accent shrink-0" />
                     )}
                     <div>
-                      <div className="text-[13px] font-medium text-text-primary">{s.name}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[13px] font-medium text-text-primary">{s.name}</span>
+                        {s.source === "fleet" && !s.locally_modified && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent/10 text-accent border border-accent/20">
+                            fleet
+                          </span>
+                        )}
+                        {s.locally_modified && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20" title="Edited locally since last fleet pull">
+                            modified
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[12px] text-text-muted font-mono mt-0.5">
                         {s.command}
                       </div>

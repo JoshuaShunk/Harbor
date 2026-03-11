@@ -1,4 +1,5 @@
 pub mod add;
+pub mod crew;
 pub mod gateway;
 pub mod icons;
 pub mod list;
@@ -98,8 +99,12 @@ pub enum Commands {
     Relay(relay_cmd::RelayCmdArgs),
 
     /// Run as an MCP stdio proxy through the Harbor gateway
-    #[command(alias = "proxy", hide = true)]
+    #[command(hide = true)]
     Proxy(proxy::ProxyArgs),
+
+    /// Manage team fleet sync — share MCP server configs across your crew
+    #[command(alias = "team")]
+    Crew(crew::CrewArgs),
 }
 
 pub async fn run(cli: Cli) -> Result<(), HarborError> {
@@ -121,5 +126,6 @@ pub async fn run(cli: Cli) -> Result<(), HarborError> {
         Commands::Publish(args) => publish::run(args).await,
         Commands::Relay(args) => relay_cmd::run(args).await,
         Commands::Proxy(args) => proxy::run(args).await,
+        Commands::Crew(args) => crew::run(args).await,
     }
 }

@@ -68,6 +68,16 @@ pub enum HarborError {
 
     #[error("Publish not active")]
     PublishNotActive,
+
+    // --- Fleet / crew sync errors ---
+    #[error("Fleet not initialized. Run `harbor crew init` to set up team sync.")]
+    FleetNotInitialized,
+
+    #[error("Git error: {0}")]
+    FleetGitError(String),
+
+    #[error("Git not found in PATH. Please install git to use fleet sync.")]
+    GitNotFound,
 }
 
 pub type Result<T> = std::result::Result<T, HarborError>;

@@ -3,6 +3,7 @@ pub mod catalog;
 pub mod config;
 pub mod connector;
 pub mod error;
+pub mod fleet;
 pub mod gateway;
 pub mod marketplace;
 pub mod relay;

@@ -22,6 +22,7 @@ export interface ServerStatus {
   command: string;
   is_remote: boolean;
   source: string | null;
+  locally_modified: boolean;
 }
 
 export interface HostStatus {
@@ -376,6 +377,30 @@ export async function getRequestLogs(limit?: number): Promise<RequestLogEntry[]>
 
 export async function clearRequestLogs(): Promise<void> {
   return invoke("clear_request_logs");
+}
+
+// --- Fleet (Crew) ---
+
+export interface FleetStatusResponse {
+  initialized: boolean;
+  remote_url: string | null;
+  ahead: number;
+  behind: number;
+}
+
+export interface FleetPullResult {
+  added: string[];
+  updated: string[];
+  locally_modified: string[];
+  conflicts: string[];
+}
+
+export async function fleetStatus(): Promise<FleetStatusResponse> {
+  return invoke<FleetStatusResponse>("fleet_status");
+}
+
+export async function fleetPull(): Promise<FleetPullResult> {
+  return invoke<FleetPullResult>("fleet_pull");
 }
 
 // --- Publish ---

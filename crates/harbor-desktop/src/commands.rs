@@ -1,4 +1,5 @@
 use harbor_core::connector;
+use harbor_core::fleet;
 use harbor_core::gateway::{Gateway, RequestLogger};
 use harbor_core::{HarborConfig, ServerConfig};
 use serde::Serialize;
@@ -76,6 +77,7 @@ pub struct ServerStatus {
     command: String,
     is_remote: bool,
     source: Option<String>,
+    locally_modified: bool,
 }
 
 #[derive(Serialize)]
@@ -101,6 +103,9 @@ pub struct HarborStatusResponse {
 
 #[tauri::command]
 pub fn get_status(state: tauri::State<AppState>) -> Result<HarborStatusResponse, String> {
+    // Load fleet state outside the config lock (file I/O, infallible).
+    let fleet_state = fleet::FleetState::load();
+
     let config = state
         .config
         .lock()
@@ -109,22 +114,31 @@ pub fn get_status(state: tauri::State<AppState>) -> Result<HarborStatusResponse,
     let servers: Vec<ServerStatus> = config
         .servers
         .iter()
-        .map(|(name, sc)| ServerStatus {
-            name: name.clone(),
-            enabled: sc.enabled,
-            running: false,
-            pid: None,
-            command: if let Some(ref url) = sc.url {
-                url.clone()
+        .map(|(name, sc)| {
+            let locally_modified = if sc.source.as_deref() == Some(fleet::FLEET_SOURCE) {
+                let def = fleet::FleetServerDef::from_server_config(sc);
+                fleet_state.is_locally_clean(name, &def) == Some(false)
             } else {
-                format!(
-                    "{} {}",
-                    sc.command.as_deref().unwrap_or(""),
-                    sc.args.join(" ")
-                )
-            },
-            is_remote: sc.is_remote(),
-            source: sc.source.clone(),
+                false
+            };
+            ServerStatus {
+                name: name.clone(),
+                enabled: sc.enabled,
+                running: false,
+                pid: None,
+                command: if let Some(ref url) = sc.url {
+                    url.clone()
+                } else {
+                    format!(
+                        "{} {}",
+                        sc.command.as_deref().unwrap_or(""),
+                        sc.args.join(" ")
+                    )
+                },
+                is_remote: sc.is_remote(),
+                source: sc.source.clone(),
+                locally_modified,
+            }
         })
         .collect();
 
@@ -1498,6 +1512,124 @@ pub fn publish_status(state: tauri::State<AppState>) -> Result<PublishStatusResp
         .ok()
         .and_then(|guard| guard.clone());
     Ok(PublishStatusResponse { publishing, info })
+}
+
+// -- Fleet (crew) commands --
+
+#[derive(Serialize)]
+pub struct FleetStatusResponse {
+    initialized: bool,
+    remote_url: Option<String>,
+    ahead: usize,
+    behind: usize,
+}
+
+#[tauri::command]
+pub fn fleet_status() -> FleetStatusResponse {
+    if !fleet::is_initialized() {
+        return FleetStatusResponse {
+            initialized: false,
+            remote_url: None,
+            ahead: 0,
+            behind: 0,
+        };
+    }
+
+    let dir = match fleet::fleet_dir() {
+        Ok(d) => d,
+        Err(_) => {
+            return FleetStatusResponse {
+                initialized: false,
+                remote_url: None,
+                ahead: 0,
+                behind: 0,
+            }
+        }
+    };
+
+    let git = fleet::FleetGit::new(dir);
+    let remote_url = git.remote_url();
+    let (ahead, behind) = if git.has_remote() {
+        git.divergence().unwrap_or((0, 0))
+    } else {
+        (0, 0)
+    };
+
+    FleetStatusResponse {
+        initialized: true,
+        remote_url,
+        ahead,
+        behind,
+    }
+}
+
+#[derive(Serialize)]
+pub struct FleetPullResult {
+    added: Vec<String>,
+    updated: Vec<String>,
+    locally_modified: Vec<String>,
+    conflicts: Vec<String>,
+}
+
+#[tauri::command]
+pub async fn fleet_pull(state: tauri::State<'_, AppState>) -> Result<FleetPullResult, String> {
+    if !fleet::is_initialized() {
+        return Err(
+            "Fleet not initialized. Run `harbor crew init` from the terminal first.".to_string(),
+        );
+    }
+
+    let dir = fleet::fleet_dir().map_err(|e| e.to_string())?;
+    let git = fleet::FleetGit::new(dir);
+
+    if git.has_remote() {
+        git.pull().map_err(|e| e.to_string())?;
+    }
+
+    let fleet_config = fleet::load().map_err(|e| e.to_string())?;
+
+    if fleet_config.servers.is_empty() {
+        return Ok(FleetPullResult {
+            added: vec![],
+            updated: vec![],
+            locally_modified: vec![],
+            conflicts: vec![],
+        });
+    }
+
+    let mut local = harbor_core::HarborConfig::load().map_err(|e| e.to_string())?;
+    let mut fleet_state = fleet::FleetState::load();
+    let result = fleet::merge(&mut local, &fleet_config, &mut fleet_state, false);
+
+    if result.has_changes() {
+        local.save().map_err(|e| e.to_string())?;
+        fleet_state.save().map_err(|e| e.to_string())?;
+
+        // Reload the in-memory config from disk.
+        if let Ok(fresh) = harbor_core::HarborConfig::load() {
+            if let Ok(mut guard) = state.config.lock() {
+                *guard = fresh;
+            }
+        }
+
+        let s = (*state).clone();
+        tauri::async_runtime::spawn(async move { auto_sync_and_reload(&s).await });
+    }
+
+    Ok(FleetPullResult {
+        added: result.added().iter().map(|s| s.to_string()).collect(),
+        updated: result.updated().iter().map(|s| s.to_string()).collect(),
+        locally_modified: result
+            .locally_modified()
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+        conflicts: result
+            .conflicts()
+            .iter()
+            .map(|(n, _)| n.to_string())
+            .collect(),
+    })
 }
 
 fn normalize_host_key(display_name: &str) -> String {

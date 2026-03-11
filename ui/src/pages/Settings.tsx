@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
-import { Trash2, Plus, ChevronDown, ChevronUp, Sun, Moon, Monitor, Settings2, RefreshCw, ArrowDownCircle, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { vaultSet, vaultDelete, vaultList, oauthListProviders, oauthRevokeCharter, oauthSetCustomCredentials, oauthStartCharter, type OAuthProviderInfo } from "../lib/tauri";
+import { Trash2, Plus, ChevronDown, ChevronUp, Sun, Moon, Monitor, Settings2, RefreshCw, ArrowDownCircle, Loader2, CheckCircle2, AlertCircle, Users } from "lucide-react";
+import { vaultSet, vaultDelete, vaultList, oauthListProviders, oauthRevokeCharter, oauthSetCustomCredentials, oauthStartCharter, fleetStatus, fleetPull, type OAuthProviderInfo, type FleetStatusResponse } from "../lib/tauri";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
 import { useUpdate } from "../contexts/UpdateContext";
@@ -110,6 +110,9 @@ function Settings() {
   const [customSecret, setCustomSecret] = useState("");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [crewStatus, setCrewStatus] = useState<FleetStatusResponse | null>(null);
+  const [crewPulling, setCrewPulling] = useState(false);
+  const [crewMsg, setCrewMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -136,6 +139,7 @@ function Settings() {
   useEffect(() => {
     refreshVault();
     refreshProviders();
+    refreshCrewStatus();
   }, []);
 
   const refreshProviders = async () => {
@@ -143,6 +147,39 @@ function Settings() {
       setProviders(await oauthListProviders());
     } catch {
       setProviders([]);
+    }
+  };
+
+  const refreshCrewStatus = async () => {
+    try {
+      setCrewStatus(await fleetStatus());
+    } catch {
+      setCrewStatus(null);
+    }
+  };
+
+  const handleCrewPull = async () => {
+    setCrewPulling(true);
+    setCrewMsg(null);
+    try {
+      const result = await fleetPull();
+      const total = result.added.length + result.updated.length;
+      if (total === 0 && result.locally_modified.length === 0 && result.conflicts.length === 0) {
+        setCrewMsg({ text: "Already up to date", isError: false });
+      } else {
+        const parts: string[] = [];
+        if (result.added.length > 0) parts.push(`${result.added.length} added`);
+        if (result.updated.length > 0) parts.push(`${result.updated.length} updated`);
+        if (result.locally_modified.length > 0) parts.push(`${result.locally_modified.length} skipped (locally modified)`);
+        if (result.conflicts.length > 0) parts.push(`${result.conflicts.length} skipped (conflict)`);
+        setCrewMsg({ text: parts.join(", "), isError: false });
+      }
+      refreshCrewStatus();
+    } catch (e) {
+      setCrewMsg({ text: String(e), isError: true });
+    } finally {
+      setCrewPulling(false);
+      setTimeout(() => setCrewMsg(null), 5000);
     }
   };
 
@@ -528,6 +565,80 @@ function Settings() {
           </div>
         ) : (
           <div className="text-[12px] text-text-muted">No secrets stored.</div>
+        )}
+      </section>
+
+      {/* Crew */}
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-[11px] font-medium text-text-muted uppercase tracking-wider">Crew</h2>
+        </div>
+        <p className="text-[12px] text-text-muted mb-4">
+          Share MCP server configs with your team via a git-backed fleet repository.
+          Initialize with <code className="px-1 py-0.5 rounded bg-bg-element font-mono text-[11px]">harbor crew init</code>.
+        </p>
+
+        {crewMsg && (
+          <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-md text-[12px] animate-fade-in ${crewMsg.isError ? "bg-red-muted text-red" : "bg-bg-element text-text-secondary"}`}>
+            {crewMsg.isError
+              ? <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              : <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />}
+            {crewMsg.text}
+          </div>
+        )}
+
+        {crewStatus?.initialized ? (
+          <div className="space-y-2">
+            {/* Remote URL */}
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <div className="text-[12px] text-text-primary font-medium mb-0.5">Fleet repository</div>
+                {crewStatus.remote_url ? (
+                  <div className="text-[11px] text-text-muted font-mono">{crewStatus.remote_url}</div>
+                ) : (
+                  <div className="text-[11px] text-text-muted">Local only — no remote configured</div>
+                )}
+              </div>
+              <button
+                onClick={handleCrewPull}
+                disabled={crewPulling}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium bg-bg-element border border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
+              >
+                {crewPulling
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <ArrowDownCircle className="w-3.5 h-3.5" />}
+                Pull
+              </button>
+            </div>
+
+            {/* Git sync status */}
+            {crewStatus.remote_url && (
+              <div className="h-px bg-border-subtle" />
+            )}
+            {crewStatus.remote_url && (
+              <div className="flex items-center justify-between py-2">
+                <div className="text-[12px] text-text-secondary">Sync status</div>
+                <div className="text-[12px]">
+                  {crewStatus.ahead === 0 && crewStatus.behind === 0 ? (
+                    <span className="flex items-center gap-1 text-emerald-400">
+                      <CheckCircle2 className="w-3 h-3" /> In sync
+                    </span>
+                  ) : (
+                    <span className="text-amber-500">
+                      {crewStatus.ahead > 0 && `↑ ${crewStatus.ahead} ahead`}
+                      {crewStatus.ahead > 0 && crewStatus.behind > 0 && " · "}
+                      {crewStatus.behind > 0 && `↓ ${crewStatus.behind} behind`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-[12px] text-text-muted">
+            <Users className="w-3.5 h-3.5" />
+            Fleet not initialized. Run <code className="px-1 py-0.5 rounded bg-bg-element font-mono text-[11px]">harbor crew init</code> to get started.
+          </div>
         )}
       </section>
     </div>
