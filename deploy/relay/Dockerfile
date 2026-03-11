@@ -17,8 +17,8 @@ COPY ui/ ui/
 # Build only the CLI binary (which includes the relay command)
 RUN cargo build --release -p harbor-cli
 
-# Runtime stage — minimal image
-FROM debian:bookworm-slim
+# Runtime stage — Ubuntu 24.04 has GLIBC 2.39 matching rust:latest (trixie)
+FROM ubuntu:24.04
 
 RUN apt-get update && apt-get install -y \
     ca-certificates libdbus-1-3 curl \
