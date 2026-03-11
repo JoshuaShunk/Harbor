@@ -90,6 +90,10 @@ impl RequestLogger {
         self.entries.lock().map(|e| e.len()).unwrap_or(0)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Clear all entries.
     pub fn clear(&self) {
         if let Ok(mut entries) = self.entries.lock() {
