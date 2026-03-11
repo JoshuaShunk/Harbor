@@ -16,7 +16,20 @@
 
 use crate::error::{HarborError, Result};
 
-const NOISE_PATTERN: &str = "Noise_NK_25519_ChaChaPoly_BLAKE2s";
+/// Noise pattern with PSK at step 2 — both parties must know the PSK to complete
+/// the handshake, so only official Harbor binaries can publish tunnels.
+const NOISE_PATTERN: &str = "Noise_NKpsk2_25519_ChaChaPoly_BLAKE2s";
+
+/// Pre-shared key compiled into the binary. Mixed into the Noise key derivation
+/// at handshake step 2 — any client without this PSK is rejected at the protocol
+/// layer before registration. To rotate: change this value and rebuild both
+/// the relay server and client binaries.
+const HARBOR_RELAY_PSK: [u8; 32] = [
+    0x88, 0xaa, 0x05, 0x6a, 0xbd, 0x02, 0xa6, 0xf9,
+    0x30, 0x29, 0x2d, 0x96, 0x33, 0xc9, 0x10, 0xf5,
+    0x03, 0xd6, 0xdd, 0xed, 0xe4, 0x2a, 0xd6, 0x3d,
+    0x40, 0x01, 0x8a, 0x7e, 0xcc, 0xc9, 0xd5, 0x0a,
+];
 
 /// A static Noise keypair (32-byte public + private keys).
 #[derive(Clone)]
@@ -96,10 +109,12 @@ pub struct HandshakeState {
 
 impl HandshakeState {
     /// Create initiator handshake (client side).
-    /// NK pattern: client knows the relay's public key but has no static key.
+    /// NKpsk2 pattern: client knows the relay's public key and the shared PSK.
     pub fn initiator(relay_public_key: &[u8; 32]) -> Result<Self> {
         let state = snow::Builder::new(NOISE_PATTERN.parse().map_err(noise_err)?)
             .remote_public_key(relay_public_key)
+            .map_err(noise_err)?
+            .psk(2, &HARBOR_RELAY_PSK)
             .map_err(noise_err)?
             .build_initiator()
             .map_err(noise_err)?;
@@ -110,6 +125,8 @@ impl HandshakeState {
     pub fn responder(relay_keypair: &Keypair) -> Result<Self> {
         let state = snow::Builder::new(NOISE_PATTERN.parse().map_err(noise_err)?)
             .local_private_key(&relay_keypair.private)
+            .map_err(noise_err)?
+            .psk(2, &HARBOR_RELAY_PSK)
             .map_err(noise_err)?
             .build_responder()
             .map_err(noise_err)?;
