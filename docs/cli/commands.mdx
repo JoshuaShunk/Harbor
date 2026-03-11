@@ -199,6 +199,79 @@ See the [gateway guide](/guides/gateway) for endpoint details.
 
 ---
 
+## harbor publish
+
+<Info>Alias: `harbor broadcast`</Info>
+
+Broadcast your gateway to the high seas — publish your local MCP tools to the internet via a secure QUIC tunnel.
+
+```sh
+harbor publish [--relay <addr>] [--subdomain <name>] [--relay-key <hex>] [--transport <type>] [--port <port>] [--tools <tool,...>]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--relay` | `relay.harbormcp.ai` | Relay server address (hostname or `host:port`) |
+| `--subdomain` | auto-assigned | Requested subdomain (e.g. `myname` → `myname.relay.harbormcp.ai`) |
+| `--relay-key` | auto-fetched | Relay's public key (hex) — required for self-hosted relays |
+| `--transport` | `quic` | Transport to use: `quic` (default) or `cloudflare` |
+| `--port` | from config | Local gateway port to tunnel (default: `3100`) |
+| `--tools` | all | Comma-separated tool allowlist for remote access |
+
+**Examples:**
+
+```sh
+# Zero-config publish via managed relay
+harbor publish
+
+# Custom subdomain
+harbor publish --subdomain myname
+
+# Self-hosted relay
+harbor publish --relay relay.example.com:7800 --relay-key <hex-key>
+
+# Cloudflare Tunnel (requires cloudflared installed)
+harbor publish --transport cloudflare
+
+# Expose only specific tools remotely
+harbor publish --tools get_issues,search_code
+```
+
+See the [publishing guide](/guides/publishing) for full details.
+
+---
+
+## harbor relay
+
+Run a self-hosted Harbor relay server.
+
+```sh
+harbor relay [--quic-port <port>] [--https-port <port>] [--domain <domain>] [--keypair-file <path>] [--print-key]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--quic-port` | `7800` | Port for QUIC tunnel listener (UDP) |
+| `--https-port` | `8443` | Port for HTTPS frontend (TCP) |
+| `--domain` | `relay.harbormcp.ai` | Domain for subdomain routing |
+| `--keypair-file` | `/data/harbor-relay/keypair` | Path to persist the relay keypair |
+| `--print-key` | — | Print the relay's public key and exit |
+| `--auth-token` | — | Require this token from all tunnel clients |
+
+**Examples:**
+
+```sh
+# Start relay with default settings
+harbor relay --domain relay.example.com
+
+# Print the relay's public key (share with tunnel clients)
+harbor relay --print-key --keypair-file /data/harbor-relay/keypair
+```
+
+See the [self-hosting guide](/guides/publishing#self-hosting-the-relay) for deployment instructions.
+
+---
+
 ## harbor cargo
 
 <Info>Alias: `harbor filter`</Info>

@@ -28,6 +28,12 @@ gateway_token = "my-secret"  # Bearer token for remote access (optional)
 | `gateway_port` | int | `3100` | Port the gateway listens on |
 | `gateway_host` | string | `"127.0.0.1"` | IP address to bind to. Use `"0.0.0.0"` to expose to the network. |
 | `gateway_token` | string | — | Bearer token required for non-localhost connections. Supports `vault:KEY` references. |
+| `publish_relay` | string | `"relay.harbormcp.ai"` | Relay server address for `harbor publish` |
+| `publish_subdomain` | string | — | Persistent subdomain to request when publishing |
+| `publish_token` | string | — | Auth token for the relay (supports `vault:KEY` references) |
+| `publish_tools` | string[] | — | Tools exposed remotely — omit to expose all |
+| `publish_auto` | bool | `false` | Auto-publish when the gateway starts |
+| `publish_relay_key` | string | — | Relay's public key (hex) for self-hosted relay verification |
 
 ### Servers
 
@@ -174,4 +180,24 @@ connected = true
 
 [hosts.cursor]
 connected = false
+```
+
+### Publish settings example
+
+```toml
+[harbor]
+gateway_port = 3100
+gateway_host = "127.0.0.1"
+publish_relay = "relay.harbormcp.ai"
+publish_subdomain = "myname"           # → myname.relay.harbormcp.ai
+publish_token = "vault:relay_auth"
+publish_auto = true                    # auto-publish when gateway starts
+publish_tools = ["get_issues", "search_code"]  # only expose these tools
+```
+
+For self-hosted relays, also set:
+
+```toml
+publish_relay = "relay.example.com:7800"
+publish_relay_key = "a1b2c3..."        # hex public key from harbor relay --print-key
 ```

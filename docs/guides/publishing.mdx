@@ -65,6 +65,39 @@ claude mcp add harbor --transport http https://abc123.relay.harbormcp.ai/mcp \
 
 **Another Harbor instance** — Servers → Add Server → Remote, paste the URL and `Authorization` header.
 
+## Cloudflare Tunnel transport
+
+As an alternative to the QUIC relay, Harbor can use [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) via the `cloudflared` CLI.
+
+```sh
+harbor publish --transport cloudflare
+```
+
+This requires `cloudflared` to be installed:
+
+```sh
+# macOS
+brew install cloudflared
+
+# Linux
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+  -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+```
+
+Harbor spawns `cloudflared tunnel --url http://127.0.0.1:3100` and extracts the assigned `*.trycloudflare.com` URL. No Cloudflare account required for temporary tunnels.
+
+**When to use Cloudflare vs QUIC relay:**
+
+| | QUIC relay | Cloudflare |
+|--|-----------|------------|
+| Account required | No | No (temporary URLs) |
+| Custom subdomain | Yes | No (trycloudflare.com) |
+| Self-hostable | Yes | No |
+| Dependency | None | `cloudflared` binary |
+| Who sees traffic | You (self-hosted) or relay operator | Cloudflare |
+
+---
+
 ## Custom subdomain
 
 Use the **Advanced** section in the desktop UI, or the CLI flag:
