@@ -5,6 +5,7 @@ pub mod connector;
 pub mod error;
 pub mod gateway;
 pub mod marketplace;
+pub mod relay;
 pub mod server;
 pub mod sync;
 pub mod updater;

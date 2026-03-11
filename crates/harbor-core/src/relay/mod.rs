@@ -54,5 +54,6 @@ pub mod transport;
 pub mod tunnel;
 
 pub use client::PublishClient;
-pub use server::RelayServer;
+pub use cloudflare::CloudflareTransport;
+pub use server::{RelayConfig, RelayServer};
 pub use transport::{PublishInfo, Transport, TransportConfig};

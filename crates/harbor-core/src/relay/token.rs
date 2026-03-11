@@ -7,8 +7,6 @@
 //! Remote access tokens can be scoped to specific tools and have expiration times.
 //! Phase 1 uses simple random bearer tokens. Phase 5 adds JWT with claims.
 
-use crate::error::Result;
-
 /// Generate a cryptographically secure random bearer token.
 ///
 /// Format: `hbr_` prefix + 32 random hex characters (128 bits of entropy).

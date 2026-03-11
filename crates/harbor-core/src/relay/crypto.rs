@@ -67,13 +67,11 @@ pub struct HandshakeState {
 
 impl HandshakeState {
     /// Create initiator handshake (client side).
-    /// The client knows the relay's public key.
+    /// NK pattern: client knows the relay's public key but has no static key.
     pub fn initiator(relay_public_key: &[u8; 32]) -> Result<Self> {
-        let builder = snow::Builder::new(NOISE_PATTERN.parse().map_err(noise_err)?);
-        let kp = builder.generate_keypair().map_err(noise_err)?;
-        let state = builder
-            .local_private_key(&kp.private)
+        let state = snow::Builder::new(NOISE_PATTERN.parse().map_err(noise_err)?)
             .remote_public_key(relay_public_key)
+            .map_err(noise_err)?
             .build_initiator()
             .map_err(noise_err)?;
         Ok(Self { inner: state })
@@ -81,9 +79,9 @@ impl HandshakeState {
 
     /// Create responder handshake (relay side).
     pub fn responder(relay_keypair: &Keypair) -> Result<Self> {
-        let builder = snow::Builder::new(NOISE_PATTERN.parse().map_err(noise_err)?);
-        let state = builder
+        let state = snow::Builder::new(NOISE_PATTERN.parse().map_err(noise_err)?)
             .local_private_key(&relay_keypair.private)
+            .map_err(noise_err)?
             .build_responder()
             .map_err(noise_err)?;
         Ok(Self { inner: state })
