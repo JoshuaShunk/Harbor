@@ -1,0 +1,155 @@
+---
+title: "Team Fleet Sync"
+sidebarTitle: "Team Sync"
+description: "Share MCP server configs across your team with harbor crew."
+---
+
+Harbor's fleet sync lets teams share a canonical set of MCP server definitions through a git repository. Every teammate pulls the same server configs — without sharing raw API keys.
+
+## How it works
+
+- **Fleet repo** — a git repository at `~/.harbor/fleet/` containing `harbor-fleet.toml`. Only server definitions are committed: command, args, env var names (as `vault:KEY` references), URLs, headers, and tool filters.
+- **Secrets stay local** — raw values never leave your machine. Fleet configs use `vault:KEY_NAME` references that each teammate provisions independently.
+- **3-way merge** — pulling the fleet merges upstream changes into your local config without overwriting per-machine settings (enabled state, host connections, tool overrides).
+- **Drift detection** — Harbor tracks a SHA-256 hash of each server's definition after every pull. If you hand-edit a fleet-managed server, it is flagged as `locally modified` and skipped on the next pull until you resolve it.
+
+## Setup (one person per team)
+
+**1. Initialize the fleet and link a remote:**
+
+```sh
+harbor crew init --git git@github.com:your-org/fleet.git
+```
+
+**2. Share your existing servers:**
+
+```sh
+# Mark servers as fleet-managed and push
+harbor crew push github linear slack
+```
+
+This writes `harbor-fleet.toml` to the fleet repo and pushes to the remote.
+
+**3. Invite teammates:**
+
+Send them the git URL. They run:
+
+```sh
+harbor crew join git@github.com:your-org/fleet.git
+```
+
+`join` clones the fleet and automatically runs `pull`, adding all fleet servers to their local config.
+
+## Day-to-day workflow
+
+```sh
+# Pull upstream changes
+harbor crew pull
+
+# Preview before applying
+harbor crew pull --dry-run
+
+# Check git sync status and per-server state
+harbor crew status
+
+# Stow missing vault secrets after a pull
+harbor crew provision
+```
+
+## Provisioning secrets
+
+Fleet servers reference secrets by name (`vault:GITHUB_TOKEN`, `vault:SLACK_TOKEN`). After pulling a fleet for the first time, run:
+
+```sh
+harbor crew provision
+```
+
+This scans the fleet config for `vault:` references that aren't yet in your keychain and prompts you to enter each value (input is hidden). Secrets are stored in your OS keychain — they never touch the git repo.
+
+To preview what's missing without entering values:
+
+```sh
+harbor crew provision --dry-run
+```
+
+## Resolving conflicts
+
+### Locally modified server
+
+If you've edited a fleet-managed server since your last pull, Harbor skips it on the next pull to protect your changes:
+
+```
+warn: 1 server(s) skipped (locally modified since last pull):
+  ≠ github
+hint: To accept upstream changes: `harbor undock github` then `harbor crew pull`.
+      To share your version with the team: `harbor crew push github`.
+```
+
+Choose one:
+- **Accept upstream** — `harbor undock github && harbor crew pull`
+- **Share your version** — `harbor crew push github`
+
+### Source conflict
+
+If a server exists locally with a non-fleet source (e.g., you docked it manually before the fleet existed), it will also be skipped:
+
+```
+warn: 1 server(s) skipped (non-fleet source):
+  ! github — server already exists with source "native:github"
+```
+
+Run `harbor undock github` then `harbor crew pull` to let the fleet version take over.
+
+## Desktop app
+
+The desktop app surfaces fleet state without requiring the CLI:
+
+- **Fleet badge** — server cards show a blue `fleet` chip for fleet-managed servers.
+- **Modified badge** — an amber `modified` chip appears when a server has drifted from its last-pulled definition.
+- **Crew section** — in **Settings → Crew**, you can see the fleet remote URL, git ahead/behind status, and trigger a pull with the **Pull** button.
+
+## The fleet config file
+
+`harbor-fleet.toml` is human-readable TOML. You can edit it directly and push:
+
+```toml
+[fleet]
+name = "acme-team"
+description = "Shared MCP servers for the Acme engineering team"
+
+[servers.github]
+description = "GitHub — repos, issues, and code search"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+
+[servers.github.env]
+GITHUB_PERSONAL_ACCESS_TOKEN = "vault:github_token"
+
+[servers.slack]
+description = "Slack — channels and messages"
+url = "https://mcp.slack.com/v1/mcp"
+
+[servers.slack.headers]
+Authorization = "Bearer vault:slack_token"
+tool_allowlist = ["send_message", "search_messages"]
+```
+
+<Note>
+Never put raw secret values in `harbor-fleet.toml`. Use `vault:KEY_NAME` references. Each teammate stows their own copy of the secret with `harbor crew provision` or `harbor chest set KEY value`.
+</Note>
+
+## Without a remote
+
+Fleet sync also works locally (no git remote required) — useful for sharing configs between machines via any file sync tool, or just keeping a versioned history of your server setup:
+
+```sh
+harbor crew init   # no --git flag
+harbor crew push
+harbor crew status
+```
+
+Add a remote later with:
+
+```sh
+harbor crew init --git <url>
+```

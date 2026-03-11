@@ -63,6 +63,7 @@
               "guides/vault",
               "guides/gateway",
               "guides/publishing",
+              "guides/team-sync",
               "guides/hosts"
             ]
           },

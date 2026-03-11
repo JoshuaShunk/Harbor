@@ -314,6 +314,105 @@ See the [vault guide](/guides/vault) for more details.
 
 ---
 
+## harbor crew
+
+<Info>Alias: `harbor team`</Info>
+
+Share MCP server configs across your team via a git-backed fleet repository. Secrets stay local — only `vault:KEY_NAME` references are committed.
+
+See the [team sync guide](/guides/team-sync) for a full walkthrough.
+
+### harbor crew init
+
+Initialize `~/.harbor/fleet/` as a git repository. Optionally links a remote so teammates can clone the same fleet.
+
+```sh
+harbor crew init [--git <url>]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--git` | Git remote URL (SSH or HTTPS) to push/pull the fleet config |
+
+**Examples:**
+
+```sh
+# Local-only fleet (add a remote later)
+harbor crew init
+
+# Initialize and link a remote in one step
+harbor crew init --git git@github.com:your-org/fleet.git
+```
+
+### harbor crew join
+
+Join an existing team fleet by cloning its git repository and auto-merging its servers into your local config.
+
+```sh
+harbor crew join <git-url>
+```
+
+### harbor crew push
+
+Push local fleet-managed servers to the shared repository. Pass server names to mark local servers as fleet-managed before pushing.
+
+```sh
+harbor crew push [<servers>...] [--message <msg>]
+```
+
+| Flag | Description |
+|------|-------------|
+| `<servers>` | Names of local servers to mark as fleet-managed and include |
+| `-m`, `--message` | Commit message (default: `"Update fleet config"`) |
+
+**Examples:**
+
+```sh
+# Share two existing servers with the team
+harbor crew push github linear
+
+# Push with a custom commit message
+harbor crew push -m "Add Slack server"
+```
+
+### harbor crew pull
+
+Fetch upstream changes and 3-way merge fleet servers into your local config.
+
+```sh
+harbor crew pull [--dry-run]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Preview what would change without applying anything |
+
+<Note>
+Servers you have edited locally since the last pull will be skipped (`locally modified`). Harbor never silently overwrites your changes. To accept the upstream version, run `harbor undock <name>` then `harbor crew pull`. To share your version instead, run `harbor crew push <name>`.
+</Note>
+
+### harbor crew status
+
+Show local vs fleet drift — git sync status (ahead/behind) and per-server state.
+
+```sh
+harbor crew status
+```
+
+### harbor crew provision
+
+Prompt for vault secrets required by fleet servers that aren't yet stowed locally.
+
+```sh
+harbor crew provision [--dry-run]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Show missing keys without prompting for values |
+
+---
+
 ## harbor scuttle
 
 <Info>Alias: `harbor uninstall`</Info>
