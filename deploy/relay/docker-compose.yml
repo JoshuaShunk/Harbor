@@ -1,0 +1,40 @@
+# Harbor Relay Server — Docker Compose
+#
+# Usage:
+#   docker compose up -d
+#
+# Environment variables:
+#   HARBOR_RELAY_DOMAIN  — Domain for subdomain routing (e.g., relay.harbormcp.ai)
+#   HARBOR_RELAY_TOKEN   — Auth token required from tunnel clients (optional)
+#   HARBOR_QUIC_PORT     — QUIC listener port (default: 7800)
+#   HARBOR_HTTPS_PORT    — HTTPS frontend port (default: 8443)
+
+services:
+  relay:
+    build:
+      context: ../..
+      dockerfile: deploy/relay/Dockerfile
+    container_name: harbor-relay
+    restart: unless-stopped
+    ports:
+      - "${HARBOR_QUIC_PORT:-7800}:7800/udp"
+      - "${HARBOR_HTTPS_PORT:-8443}:8443/tcp"
+    environment:
+      - RUST_LOG=harbor=info
+    volumes:
+      - relay-data:/data/harbor-relay
+    command:
+      - "--quic-port"
+      - "7800"
+      - "--https-port"
+      - "8443"
+      - "--domain"
+      - "${HARBOR_RELAY_DOMAIN:-relay.harbormcp.ai}"
+      - "--keypair-file"
+      - "/data/harbor-relay/keypair"
+    # Uncomment to add auth token requirement:
+    # - "--auth-token"
+    # - "${HARBOR_RELAY_TOKEN}"
+
+volumes:
+  relay-data:

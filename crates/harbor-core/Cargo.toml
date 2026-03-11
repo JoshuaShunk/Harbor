@@ -28,3 +28,10 @@ self-replace = "1"
 base64 = { workspace = true }
 rand = { workspace = true }
 urlencoding = { workspace = true }
+quinn = { workspace = true }
+rustls = { workspace = true }
+rcgen = { workspace = true }
+snow = "0.10"
+hex = "0.4"
+async-trait = "0.1"
+futures-util = "0.3"

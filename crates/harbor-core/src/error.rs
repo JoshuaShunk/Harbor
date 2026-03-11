@@ -49,6 +49,25 @@ pub enum HarborError {
 
     #[error("TOML serialization error: {0}")]
     TomlSerialize(#[from] toml::ser::Error),
+
+    // --- Relay / Publish errors ---
+    #[error("Relay error: {0}")]
+    RelayError(String),
+
+    #[error("Tunnel connection failed: {reason}")]
+    TunnelConnectionFailed { reason: String },
+
+    #[error("Tunnel not found: {subdomain}")]
+    TunnelNotFound { subdomain: String },
+
+    #[error("Tool not allowed for remote access: {tool}")]
+    RemoteToolDenied { tool: String },
+
+    #[error("Noise handshake failed: {0}")]
+    NoiseHandshakeFailed(String),
+
+    #[error("Publish not active")]
+    PublishNotActive,
 }
 
 pub type Result<T> = std::result::Result<T, HarborError>;

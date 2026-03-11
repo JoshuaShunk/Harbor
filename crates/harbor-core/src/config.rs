@@ -24,6 +24,30 @@ pub struct HarborSettings {
     pub gateway_host: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gateway_token: Option<String>,
+
+    /// Relay server address for publishing (default: "relay.harbormcp.ai")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish_relay: Option<String>,
+
+    /// Requested subdomain for publishing (None = auto-assigned)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish_subdomain: Option<String>,
+
+    /// Auth token for the relay (can use vault: prefix)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish_token: Option<String>,
+
+    /// Tools exposed remotely (None = all, Some([]) = none)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish_tools: Option<Vec<String>>,
+
+    /// Auto-publish when gateway starts
+    #[serde(default)]
+    pub publish_auto: bool,
+
+    /// Relay's public key for Noise handshake (hex-encoded, for self-hosted)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish_relay_key: Option<String>,
 }
 
 impl Default for HarborSettings {
@@ -32,6 +56,12 @@ impl Default for HarborSettings {
             gateway_port: default_gateway_port(),
             gateway_host: default_gateway_host(),
             gateway_token: None,
+            publish_relay: None,
+            publish_subdomain: None,
+            publish_token: None,
+            publish_tools: None,
+            publish_auto: false,
+            publish_relay_key: None,
         }
     }
 }

@@ -1,0 +1,34 @@
+# Harbor Relay Server Configuration
+#
+# This file is optional — all settings can be passed as CLI flags.
+# Place at ~/.harbor/relay.toml on the relay server.
+
+# QUIC listener port (tunnel clients connect here)
+quic_port = 7800
+
+# HTTPS frontend port (remote MCP clients connect here)
+https_port = 8443
+
+# Domain for subdomain routing
+# Remote clients access: https://{subdomain}.{domain}/mcp
+domain = "relay.harbormcp.ai"
+
+# Auth token required from tunnel clients (optional)
+# If set, `harbor publish` must provide this token via --token
+# auth_token = "your-secret-relay-token"
+
+# TLS certificates (for production HTTPS)
+# For development, the relay runs plain HTTP on the HTTPS port.
+# In production, terminate TLS at a reverse proxy (nginx/caddy) or provide certs:
+# tls_cert = "/etc/harbor/cert.pem"
+# tls_key = "/etc/harbor/key.pem"
+
+[tunnel]
+# Heartbeat timeout — tunnels without a heartbeat are reaped
+heartbeat_timeout_secs = 90
+
+# Heartbeat interval — how often clients send heartbeats
+heartbeat_interval_secs = 30
+
+# Max tunnels per auth token
+max_tunnels_per_token = 10

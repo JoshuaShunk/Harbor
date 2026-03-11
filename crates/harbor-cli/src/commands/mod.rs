@@ -4,6 +4,8 @@ pub mod icons;
 pub mod list;
 pub mod port;
 pub mod proxy;
+pub mod publish;
+pub mod relay_cmd;
 pub mod remove;
 pub mod search;
 pub mod start;
@@ -87,9 +89,17 @@ pub enum Commands {
     /// Update Harbor to the latest version
     Update(update::UpdateArgs),
 
+    /// Broadcast your gateway to the high seas (publish to relay)
+    #[command(alias = "broadcast")]
+    Publish(publish::PublishArgs),
+
+    /// Run the Harbor relay server (self-hosted)
+    #[command(alias = "relay-server")]
+    Relay(relay_cmd::RelayCmdArgs),
+
     /// Run as an MCP stdio proxy through the Harbor gateway
     #[command(alias = "proxy", hide = true)]
-    Relay(proxy::ProxyArgs),
+    Proxy(proxy::ProxyArgs),
 }
 
 pub async fn run(cli: Cli) -> Result<(), HarborError> {
@@ -108,6 +118,8 @@ pub async fn run(cli: Cli) -> Result<(), HarborError> {
         Commands::Port(args) => port::run(args).await,
         Commands::Scuttle(args) => uninstall::run(args).await,
         Commands::Update(args) => update::run(args).await,
-        Commands::Relay(args) => proxy::run(args).await,
+        Commands::Publish(args) => publish::run(args).await,
+        Commands::Relay(args) => relay_cmd::run(args).await,
+        Commands::Proxy(args) => proxy::run(args).await,
     }
 }
