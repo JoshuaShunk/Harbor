@@ -90,20 +90,21 @@ impl PublishClient {
         ));
         endpoint.set_default_client_config(client_config);
 
-        // Resolve relay address
-        let relay_socket: std::net::SocketAddr = if relay_addr.contains(':') {
-            relay_addr
-                .parse()
-                .map_err(|e| HarborError::TunnelConnectionFailed {
-                    reason: format!("Invalid relay address '{relay_addr}': {e}"),
-                })?
+        // Resolve relay address (hostname:port or ip:port)
+        let addr_str = if relay_addr.contains(':') {
+            relay_addr.to_string()
         } else {
-            format!("{relay_addr}:7800").parse().map_err(|e| {
-                HarborError::TunnelConnectionFailed {
-                    reason: format!("Invalid relay address '{relay_addr}': {e}"),
-                }
-            })?
+            format!("{relay_addr}:7800")
         };
+        let relay_socket = tokio::net::lookup_host(&addr_str)
+            .await
+            .map_err(|e| HarborError::TunnelConnectionFailed {
+                reason: format!("Failed to resolve relay address '{addr_str}': {e}"),
+            })?
+            .next()
+            .ok_or_else(|| HarborError::TunnelConnectionFailed {
+                reason: format!("No addresses found for '{addr_str}'"),
+            })?;
 
         // Connect QUIC
         let connection = endpoint
