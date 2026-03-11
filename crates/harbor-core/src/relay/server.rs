@@ -195,7 +195,7 @@ fn create_quic_endpoint(addr: SocketAddr) -> Result<quinn::Endpoint> {
     let mut server_crypto = rustls::ServerConfig::builder()
         .with_no_client_auth()
         .with_single_cert(
-            vec![cert_der.into()],
+            vec![cert_der],
             rustls::pki_types::PrivateKeyDer::Pkcs8(key_der.into()),
         )
         .map_err(|e| HarborError::RelayError(format!("TLS config error: {e}")))?;

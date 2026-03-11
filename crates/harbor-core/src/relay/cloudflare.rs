@@ -32,6 +32,12 @@ pub struct CloudflareTransport {
     connected: bool,
 }
 
+impl Default for CloudflareTransport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CloudflareTransport {
     pub fn new() -> Self {
         Self {
