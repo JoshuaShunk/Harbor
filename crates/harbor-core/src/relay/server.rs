@@ -181,6 +181,9 @@ impl RelayServer {
 
 /// Create a self-signed QUIC endpoint for the relay server.
 fn create_quic_endpoint(addr: SocketAddr) -> Result<quinn::Endpoint> {
+    // Rustls 0.23 requires an explicit crypto provider; install ring if not already set
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // Generate a self-signed cert for QUIC transport layer
     // (Noise protocol handles actual authentication, QUIC TLS is just for transport)
     let cert = rcgen::generate_simple_self_signed(vec!["harbor-relay".to_string()])
