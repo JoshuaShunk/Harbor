@@ -354,6 +354,30 @@ export async function getConfigSchema(name: string): Promise<ConfigSchemaRespons
   return invoke<ConfigSchemaResponse>("get_config_schema", { name });
 }
 
+// --- Request Log ---
+
+export type RequestStatus = "success" | "error";
+
+export interface RequestLogEntry {
+  id: number;
+  timestamp: string; // ISO 8601 UTC
+  server: string;
+  tool: string;
+  input: unknown;
+  status: RequestStatus;
+  latency_ms: number;
+  error: string | null;
+  output: unknown | null;
+}
+
+export async function getRequestLogs(limit?: number): Promise<RequestLogEntry[]> {
+  return invoke<RequestLogEntry[]>("get_request_logs", { limit: limit ?? null });
+}
+
+export async function clearRequestLogs(): Promise<void> {
+  return invoke("clear_request_logs");
+}
+
 // --- Publish ---
 
 export interface PublishInfoResponse {

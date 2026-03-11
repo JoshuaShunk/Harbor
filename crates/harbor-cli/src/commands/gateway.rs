@@ -1,6 +1,6 @@
 use clap::Args;
 use colored::Colorize;
-use harbor_core::gateway::Gateway;
+use harbor_core::gateway::{Gateway, RequestLogger};
 use harbor_core::{HarborConfig, HarborError};
 
 #[derive(Args)]
@@ -71,7 +71,7 @@ pub async fn run(args: GatewayArgs) -> Result<(), HarborError> {
 
     println!();
 
-    let gateway = Gateway::new(config);
+    let gateway = Gateway::new(config, std::sync::Arc::new(RequestLogger::new()));
 
     // Wire ctrl_c to the shutdown channel
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();

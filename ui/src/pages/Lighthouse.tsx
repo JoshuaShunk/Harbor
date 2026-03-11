@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Loader2, Globe, Trash2, ArrowDown, Shield, Eye, EyeOff, Copy, Check, Radio, Download, Wifi, ChevronDown, ExternalLink } from "lucide-react";
+import { Loader2, Globe, Trash2, ArrowDown, Shield, Eye, EyeOff, Copy, Check, Radio, Download, Wifi, ChevronDown, ChevronRight, Activity } from "lucide-react";
 import { useGatewayLogs } from "../contexts/LogContext";
 import {
   getStatus,
@@ -12,9 +12,12 @@ import {
   startPublish,
   stopPublish,
   publishStatus,
+  getRequestLogs,
+  clearRequestLogs,
   type HarborStatus,
   type GatewaySettingsInfo,
   type PublishInfoResponse,
+  type RequestLogEntry,
 } from "../lib/tauri";
 
 const levelColor: Record<string, string> = {
@@ -44,6 +47,14 @@ function Lighthouse() {
   const [copied, setCopied] = useState(false);
   const [tokenSaved, setTokenSaved] = useState(false);
 
+  // Bottom panel tab
+  const [activeTab, setActiveTab] = useState<"log" | "calls">("log");
+
+  // Tool call log
+  const [toolCalls, setToolCalls] = useState<RequestLogEntry[]>([]);
+  const [expandedCall, setExpandedCall] = useState<number | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Publish state
   const [publishing, setPublishing] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
@@ -55,7 +66,10 @@ function Lighthouse() {
 
   useEffect(() => {
     getStatus().then(setStatus).catch(() => {});
-    gatewayStatus().then(setRunning).catch(() => {});
+    gatewayStatus().then((r) => {
+      setRunning(r);
+      if (r) getRequestLogs(100).then(setToolCalls).catch(() => {});
+    }).catch(() => {});
     getGatewaySettings().then((s) => {
       setSettings(s);
       setExposed(s.host === "0.0.0.0");
@@ -69,6 +83,20 @@ function Lighthouse() {
       if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
     };
   }, []);
+
+  // Poll tool calls every 2s while gateway is running and the tab is visible
+  useEffect(() => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (running) {
+      getRequestLogs(100).then(setToolCalls).catch(() => {});
+      pollRef.current = setInterval(() => {
+        getRequestLogs(100).then(setToolCalls).catch(() => {});
+      }, 2000);
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [running]);
 
   // Auto-scroll (debounced to avoid queueing animations under high log volume)
   useEffect(() => {
@@ -453,68 +481,217 @@ function Lighthouse() {
         </section>
       )}
 
-      {/* Log Viewer */}
+      {/* Bottom panel — Signal Log / Tool Calls */}
       <section className="flex-1 flex flex-col rounded-lg bg-bg-element border border-border-subtle overflow-hidden min-h-0">
+        {/* Tab bar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-border-subtle shrink-0">
-          <span className="text-[12px] font-medium text-text-primary">Signal Log</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
-              onClick={() => setAutoScroll(!autoScroll)}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition-colors ${
-                autoScroll
-                  ? "bg-accent-muted text-accent"
+              onClick={() => setActiveTab("log")}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                activeTab === "log"
+                  ? "bg-bg-app text-text-primary"
                   : "text-text-muted hover:text-text-secondary"
               }`}
             >
-              <ArrowDown className="w-3 h-3" />
-              Auto-scroll
+              <Radio className="w-3 h-3" />
+              Signal Log
             </button>
             <button
-              onClick={exportLogs}
-              disabled={logs.length === 0}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
-                exported ? "text-green" : "text-text-muted hover:text-text-secondary"
+              onClick={() => setActiveTab("calls")}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                activeTab === "calls"
+                  ? "bg-bg-app text-text-primary"
+                  : "text-text-muted hover:text-text-secondary"
               }`}
             >
-              {exported ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
-              {exported ? "Saved" : "Export"}
-            </button>
-            <button
-              onClick={clearLogs}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-text-muted hover:text-text-secondary transition-colors"
-            >
-              <Trash2 className="w-3 h-3" />
-              Clear
-            </button>
-            <span className="text-[11px] text-text-muted tabular-nums">{logs.length} entries</span>
-          </div>
-        </div>
-        <div className="flex-1 overflow-auto p-3 font-mono text-[11px] leading-relaxed bg-bg-app">
-          {logs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-              <div className="w-10 h-10 rounded-xl bg-bg-element border border-border-subtle flex items-center justify-center mb-3">
-                <Radio className={`w-5 h-5 ${running ? "text-green animate-pulse" : "text-text-muted"}`} />
-              </div>
-              <p className="text-[13px] font-medium text-text-primary mb-0.5">
-                {running ? "Listening for signals" : "No signals yet"}
-              </p>
-              <p className="text-[12px] text-text-secondary">
-                {running ? "Log entries will appear here as they arrive" : "Light the beacon to start capturing logs"}
-              </p>
-            </div>
-          ) : (
-            logs.map((entry, i) => (
-              <div key={i} className="flex gap-2 hover:bg-bg-hover rounded px-1 py-0.5">
-                <span className="text-text-muted shrink-0">{entry.timestamp}</span>
-                <span className={`shrink-0 w-12 ${levelColor[entry.level] ?? "text-text-secondary"}`}>
-                  {entry.level}
+              <Activity className="w-3 h-3" />
+              Tool Calls
+              {toolCalls.length > 0 && (
+                <span className="ml-1 px-1 rounded bg-accent/20 text-accent text-[10px] tabular-nums">
+                  {toolCalls.length}
                 </span>
-                <span className="text-text-secondary break-all">{entry.message}</span>
-              </div>
-            ))
+              )}
+            </button>
+          </div>
+
+          {/* Tab-specific controls */}
+          {activeTab === "log" && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAutoScroll(!autoScroll)}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition-colors ${
+                  autoScroll
+                    ? "bg-accent-muted text-accent"
+                    : "text-text-muted hover:text-text-secondary"
+                }`}
+              >
+                <ArrowDown className="w-3 h-3" />
+                Auto-scroll
+              </button>
+              <button
+                onClick={exportLogs}
+                disabled={logs.length === 0}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                  exported ? "text-green" : "text-text-muted hover:text-text-secondary"
+                }`}
+              >
+                {exported ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                {exported ? "Saved" : "Export"}
+              </button>
+              <button
+                onClick={clearLogs}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-text-muted hover:text-text-secondary transition-colors"
+              >
+                <Trash2 className="w-3 h-3" />
+                Clear
+              </button>
+              <span className="text-[11px] text-text-muted tabular-nums">{logs.length} entries</span>
+            </div>
           )}
-          <div ref={logEndRef} />
+
+          {activeTab === "calls" && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { clearRequestLogs().catch(() => {}); setToolCalls([]); setExpandedCall(null); }}
+                disabled={toolCalls.length === 0}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-text-muted hover:text-text-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-3 h-3" />
+                Clear
+              </button>
+              <span className="text-[11px] text-text-muted tabular-nums">{toolCalls.length} calls</span>
+            </div>
+          )}
         </div>
+
+        {/* Signal Log pane */}
+        {activeTab === "log" && (
+          <div className="flex-1 overflow-auto p-3 font-mono text-[11px] leading-relaxed bg-bg-app">
+            {logs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+                <div className="w-10 h-10 rounded-xl bg-bg-element border border-border-subtle flex items-center justify-center mb-3">
+                  <Radio className={`w-5 h-5 ${running ? "text-green animate-pulse" : "text-text-muted"}`} />
+                </div>
+                <p className="text-[13px] font-medium text-text-primary mb-0.5">
+                  {running ? "Listening for signals" : "No signals yet"}
+                </p>
+                <p className="text-[12px] text-text-secondary">
+                  {running ? "Log entries will appear here as they arrive" : "Light the beacon to start capturing logs"}
+                </p>
+              </div>
+            ) : (
+              logs.map((entry, i) => (
+                <div key={i} className="flex gap-2 hover:bg-bg-hover rounded px-1 py-0.5">
+                  <span className="text-text-muted shrink-0">{entry.timestamp}</span>
+                  <span className={`shrink-0 w-12 ${levelColor[entry.level] ?? "text-text-secondary"}`}>
+                    {entry.level}
+                  </span>
+                  <span className="text-text-secondary break-all">{entry.message}</span>
+                </div>
+              ))
+            )}
+            <div ref={logEndRef} />
+          </div>
+        )}
+
+        {/* Tool Calls pane */}
+        {activeTab === "calls" && (
+          <div className="flex-1 overflow-auto bg-bg-app">
+            {toolCalls.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+                <div className="w-10 h-10 rounded-xl bg-bg-element border border-border-subtle flex items-center justify-center mb-3">
+                  <Activity className={`w-5 h-5 ${running ? "text-accent animate-pulse" : "text-text-muted"}`} />
+                </div>
+                <p className="text-[13px] font-medium text-text-primary mb-0.5">
+                  {running ? "Waiting for tool calls" : "No tool calls recorded"}
+                </p>
+                <p className="text-[12px] text-text-secondary">
+                  {running ? "Tool calls will appear here as they arrive" : "Light the beacon to start recording"}
+                </p>
+              </div>
+            ) : (
+              <table className="w-full text-[11px]">
+                <thead className="sticky top-0 bg-bg-element border-b border-border-subtle">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-text-muted font-medium w-27.5">Time</th>
+                    <th className="px-3 py-2 text-left text-text-muted font-medium w-30">Server</th>
+                    <th className="px-3 py-2 text-left text-text-muted font-medium">Tool</th>
+                    <th className="px-3 py-2 text-left text-text-muted font-medium w-18">Status</th>
+                    <th className="px-3 py-2 text-right text-text-muted font-medium w-15">ms</th>
+                    <th className="w-6" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...toolCalls].reverse().map((call) => (
+                    <>
+                      <tr
+                        key={call.id}
+                        onClick={() => setExpandedCall(expandedCall === call.id ? null : call.id)}
+                        className="border-b border-border-subtle/50 hover:bg-bg-hover cursor-pointer"
+                      >
+                        <td className="px-3 py-1.5 text-text-muted font-mono tabular-nums whitespace-nowrap">
+                          {new Date(call.timestamp).toLocaleTimeString()}
+                        </td>
+                        <td className="px-3 py-1.5 text-text-secondary truncate max-w-30">
+                          {call.server}
+                        </td>
+                        <td className="px-3 py-1.5 text-text-primary font-mono truncate">
+                          {call.tool}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            call.status === "success"
+                              ? "bg-green/10 text-green"
+                              : "bg-red/10 text-red"
+                          }`}>
+                            {call.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-text-muted font-mono tabular-nums">
+                          {call.latency_ms}
+                        </td>
+                        <td className="pr-2 text-text-muted">
+                          {expandedCall === call.id
+                            ? <ChevronDown className="w-3 h-3" />
+                            : <ChevronRight className="w-3 h-3" />
+                          }
+                        </td>
+                      </tr>
+                      {expandedCall === call.id && (
+                        <tr key={`${call.id}-detail`} className="bg-bg-element/50">
+                          <td colSpan={6} className="px-3 py-2">
+                            <div className="space-y-2">
+                              {call.error && (
+                                <div className="px-2 py-1.5 rounded bg-red/10 border border-red/20 text-[11px] text-red font-mono">
+                                  {call.error}
+                                </div>
+                              )}
+                              <div>
+                                <div className="text-[10px] text-text-muted mb-1 uppercase tracking-wide">Input</div>
+                                <pre className="text-[10px] text-text-secondary font-mono bg-bg-app rounded px-2 py-1.5 overflow-auto max-h-32 border border-border-subtle/50">
+                                  {JSON.stringify(call.input, null, 2)}
+                                </pre>
+                              </div>
+                              {call.output != null && (
+                                <div>
+                                  <div className="text-[10px] text-text-muted mb-1 uppercase tracking-wide">Output</div>
+                                  <pre className="text-[10px] text-text-secondary font-mono bg-bg-app rounded px-2 py-1.5 overflow-auto max-h-48 border border-border-subtle/50">
+                                    {JSON.stringify(call.output, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -1,5 +1,5 @@
 use harbor_core::connector;
-use harbor_core::gateway::Gateway;
+use harbor_core::gateway::{Gateway, RequestLogger};
 use harbor_core::{HarborConfig, ServerConfig};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -24,6 +24,9 @@ pub struct AppState {
     publish_shutdown: Arc<Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     /// Holds the publish info after successful publishing.
     publish_info: Arc<Mutex<Option<PublishInfoResponse>>>,
+    /// Ring buffer of recent gateway tool call records.
+    /// Persists across gateway restarts — cleared only by the user.
+    pub request_logger: Arc<RequestLogger>,
 }
 
 impl AppState {
@@ -33,6 +36,7 @@ impl AppState {
             gateway_shutdown: Arc::new(Mutex::new(None)),
             publish_shutdown: Arc::new(Mutex::new(None)),
             publish_info: Arc::new(Mutex::new(None)),
+            request_logger: Arc::new(RequestLogger::new()),
         }
     }
 
@@ -1210,7 +1214,7 @@ pub async fn start_gateway_inner(
     };
 
     let port = config.harbor.gateway_port;
-    let gateway = Gateway::new(config);
+    let gateway = Gateway::new(config, Arc::clone(&state.request_logger));
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
 
@@ -1322,6 +1326,22 @@ pub async fn reload_gateway(state: tauri::State<'_, AppState>) -> Result<(), Str
 pub struct GatewaySettings {
     host: String,
     token: Option<String>,
+}
+
+// -- Request log commands --
+
+#[tauri::command]
+pub fn get_request_logs(
+    state: tauri::State<AppState>,
+    limit: Option<usize>,
+) -> Vec<harbor_core::gateway::logger::RequestLog> {
+    let limit = limit.unwrap_or(100).min(500);
+    state.request_logger.recent(limit)
+}
+
+#[tauri::command]
+pub fn clear_request_logs(state: tauri::State<AppState>) {
+    state.request_logger.clear();
 }
 
 // -- Publish commands --

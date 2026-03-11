@@ -2,6 +2,7 @@ use crate::auth::vault::Vault;
 use crate::config::HarborConfig;
 use crate::error::Result;
 use crate::gateway::bridge::{stdio_servers_with_oauth, BridgeManager, ToolInfo};
+use crate::gateway::logger::{RequestLog, RequestLogger, RequestStatus};
 use crate::gateway::stdio::{JsonRpcRequest, JsonRpcResponse};
 use axum::extract::{ConnectInfo, Query, Request, State};
 use axum::http::StatusCode;
@@ -26,6 +27,8 @@ pub struct GatewayState {
     /// Resolved bearer token for auth (None = no auth required).
     /// Behind RwLock so it can be hot-swapped without restarting the gateway.
     pub token: RwLock<Option<String>>,
+    /// Ring buffer of recent tool call records for the Lighthouse UI.
+    pub request_logger: Arc<RequestLogger>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -43,8 +46,11 @@ pub struct Gateway {
 }
 
 impl Gateway {
-    /// Create a new gateway from Harbor config.
-    pub fn new(config: HarborConfig) -> Self {
+    /// Create a new gateway from Harbor config and a shared request logger.
+    ///
+    /// Pass `Arc::new(RequestLogger::new())` from the caller so the same logger
+    /// can be accessed outside the gateway (e.g. from Tauri commands).
+    pub fn new(config: HarborConfig, request_logger: Arc<RequestLogger>) -> Self {
         let host = config.harbor.gateway_host.clone();
         let port = config.harbor.gateway_port;
 
@@ -66,8 +72,14 @@ impl Gateway {
                 config: Mutex::new(config),
                 events_tx,
                 token: RwLock::new(token),
+                request_logger,
             }),
         }
+    }
+
+    /// Returns a handle to the request logger shared with this gateway instance.
+    pub fn logger(&self) -> Arc<RequestLogger> {
+        self.state.request_logger.clone()
     }
 
     /// Launch the HTTP gateway, then start MCP servers in the background.
@@ -85,6 +97,7 @@ impl Gateway {
             .route("/mcp", post(handle_mcp_request))
             .route("/reload", post(handle_reload))
             .route("/sse", get(handle_sse))
+            .route("/logs", get(list_logs))
             .route_layer(middleware::from_fn_with_state(
                 self.state.clone(),
                 auth_middleware,
@@ -115,7 +128,7 @@ impl Gateway {
 
         info!(addr = %addr, "Harbor Gateway running");
         info!(
-            "Endpoints: POST /mcp, POST /reload, GET /sse, GET /tools, GET /servers, GET /health"
+            "Endpoints: POST /mcp, POST /reload, GET /sse, GET /tools, GET /servers, GET /logs, GET /health"
         );
 
         // Start MCP servers in the background (don't block the HTTP server)
@@ -375,7 +388,8 @@ async fn handle_mcp_request(
             let tool_name = params
                 .get("name")
                 .and_then(|n| n.as_str())
-                .ok_or(StatusCode::BAD_REQUEST)?;
+                .ok_or(StatusCode::BAD_REQUEST)?
+                .to_string();
             let arguments = params
                 .get("arguments")
                 .cloned()
@@ -383,9 +397,42 @@ async fn handle_mcp_request(
 
             info!(tool = %tool_name, "tools/call");
 
-            match state.bridge_manager.call_tool(tool_name, arguments).await {
+            // Resolve the owning server name before the call (best-effort)
+            let server_name = {
+                state
+                    .bridge_manager
+                    .server_for_tool(&tool_name)
+                    .await
+                    .unwrap_or_else(|| "unknown".to_string())
+            };
+
+            let log_id = state.request_logger.next_id();
+            let started = std::time::Instant::now();
+
+            match state
+                .bridge_manager
+                .call_tool(&tool_name, arguments.clone())
+                .await
+            {
                 Ok(response) => {
-                    info!(tool = %tool_name, "tools/call succeeded");
+                    let latency_ms = started.elapsed().as_millis() as u64;
+                    info!(
+                        tool = %tool_name,
+                        server = %server_name,
+                        latency_ms = latency_ms,
+                        "tools/call succeeded"
+                    );
+                    state.request_logger.push(RequestLog {
+                        id: log_id,
+                        timestamp: chrono::Utc::now(),
+                        server: server_name,
+                        tool: tool_name,
+                        input: arguments,
+                        status: RequestStatus::Success,
+                        latency_ms,
+                        error: None,
+                        output: response.result.clone(),
+                    });
                     // Use the original request id
                     Ok(Json(JsonRpcResponse {
                         id: request.id,
@@ -393,7 +440,25 @@ async fn handle_mcp_request(
                     }))
                 }
                 Err(e) => {
-                    warn!(tool = %tool_name, error = %e, "tools/call failed");
+                    let latency_ms = started.elapsed().as_millis() as u64;
+                    warn!(
+                        tool = %tool_name,
+                        server = %server_name,
+                        error = %e,
+                        latency_ms = latency_ms,
+                        "tools/call failed"
+                    );
+                    state.request_logger.push(RequestLog {
+                        id: log_id,
+                        timestamp: chrono::Utc::now(),
+                        server: server_name,
+                        tool: tool_name,
+                        input: arguments,
+                        status: RequestStatus::Error,
+                        latency_ms,
+                        error: Some(e.to_string()),
+                        output: None,
+                    });
                     Ok(Json(JsonRpcResponse::error(
                         request.id,
                         -32602,
@@ -496,6 +561,30 @@ async fn handle_reload(
         "stopped": stopped,
         "total_tools": tool_count,
     })))
+}
+
+// --- Request log endpoint ---
+
+#[derive(Deserialize, Default)]
+struct LogsQuery {
+    /// Maximum number of recent entries to return (default 100, max 500).
+    limit: Option<usize>,
+}
+
+#[derive(Serialize)]
+struct LogsResponse {
+    logs: Vec<crate::gateway::logger::RequestLog>,
+    total: usize,
+}
+
+async fn list_logs(
+    State(state): State<Arc<GatewayState>>,
+    Query(query): Query<LogsQuery>,
+) -> Json<LogsResponse> {
+    let limit = query.limit.unwrap_or(100).min(500);
+    let total = state.request_logger.len();
+    let logs = state.request_logger.recent(limit);
+    Json(LogsResponse { logs, total })
 }
 
 /// SSE endpoint — streams real-time gateway events (tools_changed, etc.).

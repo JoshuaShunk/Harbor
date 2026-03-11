@@ -256,6 +256,15 @@ impl BridgeManager {
         bridge.call_tool(tool_name, arguments).await
     }
 
+    /// Return the name of the server that owns the given tool, if known.
+    pub async fn server_for_tool(&self, tool_name: &str) -> Option<String> {
+        let cache = self.tool_cache.lock().await;
+        cache
+            .iter()
+            .find(|t| t.name == tool_name)
+            .map(|t| t.server.clone())
+    }
+
     /// Forward a raw JSON-RPC request to a specific server.
     pub async fn forward_to_server(
         &self,
