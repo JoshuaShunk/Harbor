@@ -6,6 +6,13 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 
+#[derive(Clone, Serialize)]
+pub struct PublishInfoResponse {
+    pub url: String,
+    pub token: String,
+    pub transport: String,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     config: Arc<Mutex<HarborConfig>>,
@@ -13,6 +20,10 @@ pub struct AppState {
     /// `Some(tx)` = running, `None` = stopped.
     /// Wrapped in Arc so the background task can clear it on exit.
     gateway_shutdown: Arc<Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
+    /// Holds the shutdown sender while publish is running.
+    publish_shutdown: Arc<Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
+    /// Holds the publish info after successful publishing.
+    publish_info: Arc<Mutex<Option<PublishInfoResponse>>>,
 }
 
 impl AppState {
@@ -20,11 +31,20 @@ impl AppState {
         Self {
             config: Arc::new(Mutex::new(config)),
             gateway_shutdown: Arc::new(Mutex::new(None)),
+            publish_shutdown: Arc::new(Mutex::new(None)),
+            publish_info: Arc::new(Mutex::new(None)),
         }
     }
 
     pub fn gateway_running(&self) -> bool {
         self.gateway_shutdown
+            .lock()
+            .map(|guard| guard.is_some())
+            .unwrap_or(false)
+    }
+
+    pub fn publish_running(&self) -> bool {
+        self.publish_shutdown
             .lock()
             .map(|guard| guard.is_some())
             .unwrap_or(false)
@@ -1302,6 +1322,162 @@ pub async fn reload_gateway(state: tauri::State<'_, AppState>) -> Result<(), Str
 pub struct GatewaySettings {
     host: String,
     token: Option<String>,
+}
+
+// -- Publish commands --
+
+#[tauri::command]
+pub async fn start_publish(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    subdomain: Option<String>,
+    relay: Option<String>,
+    tools: Option<Vec<String>>,
+) -> Result<PublishInfoResponse, String> {
+    // Check if already publishing
+    {
+        let guard = state
+            .publish_shutdown
+            .lock()
+            .map_err(|_| "Lock poisoned".to_string())?;
+        if guard.is_some() {
+            return Err("Already publishing".to_string());
+        }
+    }
+
+    let config = {
+        state
+            .config
+            .lock()
+            .map_err(|_| "Config lock poisoned".to_string())?
+            .clone()
+    };
+
+    let port = config.harbor.gateway_port;
+    let relay_addr = relay
+        .or(config.harbor.publish_relay.clone())
+        .unwrap_or_else(|| "relay.harbormcp.ai".to_string());
+    let subdomain = subdomain.or(config.harbor.publish_subdomain.clone());
+    let token = config.harbor.publish_token.clone();
+    let relay_key = config.harbor.publish_relay_key.clone();
+    let tools = tools.or(config.harbor.publish_tools.clone());
+
+    let transport_config = harbor_core::relay::TransportConfig {
+        gateway_addr: format!("http://127.0.0.1:{port}"),
+        relay_addr: Some(format!("{relay_addr}:7800")),
+        auth_token: token,
+        subdomain,
+        relay_public_key: relay_key,
+        tools,
+        gateway_port: port,
+    };
+
+    let client = harbor_core::relay::PublishClient::new(transport_config);
+
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+
+    let shutdown_ref = Arc::clone(&state.publish_shutdown);
+    let info_ref = Arc::clone(&state.publish_info);
+    {
+        let mut guard = shutdown_ref
+            .lock()
+            .map_err(|_| "Lock poisoned".to_string())?;
+        *guard = Some(shutdown_tx);
+    }
+
+    // Use run_with_info so we get the PublishInfo as soon as registration succeeds
+    let (early_info_tx, early_info_rx) = tokio::sync::oneshot::channel();
+    // Separate channel for errors during connection
+    let (err_tx, err_rx) = tokio::sync::oneshot::channel::<String>();
+
+    let app_handle_bg = app_handle.clone();
+    tokio::spawn(async move {
+        match client.run_with_info(shutdown_rx, early_info_tx).await {
+            Ok(_) => {}
+            Err(e) => {
+                // If we haven't sent info yet, send the error
+                let _ = err_tx.send(e.to_string());
+            }
+        }
+        // Clear state on exit
+        if let Ok(mut guard) = shutdown_ref.lock() {
+            *guard = None;
+        }
+        if let Ok(mut guard) = info_ref.lock() {
+            *guard = None;
+        }
+        let _ = app_handle_bg.emit("publish-status-changed", false);
+        tracing::info!("Publish stopped");
+    });
+
+    // Wait for either publish info (success) or error
+    tokio::select! {
+        info = early_info_rx => {
+            let info = info.map_err(|_| "Publish task terminated unexpectedly".to_string())?;
+            let response = PublishInfoResponse {
+                url: info.url,
+                token: info.token,
+                transport: info.transport,
+            };
+            if let Ok(mut guard) = state.publish_info.lock() {
+                *guard = Some(response.clone());
+            }
+            let _ = app_handle.emit("publish-status-changed", true);
+            Ok(response)
+        }
+        err = err_rx => {
+            let err_msg = err.unwrap_or_else(|_| "Unknown publish error".to_string());
+            if let Ok(mut guard) = state.publish_shutdown.lock() {
+                *guard = None;
+            }
+            Err(err_msg)
+        }
+    }
+}
+
+#[tauri::command]
+pub fn stop_publish(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<AppState>,
+) -> Result<String, String> {
+    let tx = {
+        let mut guard = state
+            .publish_shutdown
+            .lock()
+            .map_err(|_| "Lock poisoned".to_string())?;
+        guard.take()
+    };
+
+    // Clear publish info
+    if let Ok(mut guard) = state.publish_info.lock() {
+        *guard = None;
+    }
+
+    match tx {
+        Some(tx) => {
+            let _ = tx.send(());
+            let _ = app_handle.emit("publish-status-changed", false);
+            Ok("Publish stopped".to_string())
+        }
+        None => Err("Not currently publishing".to_string()),
+    }
+}
+
+#[derive(Serialize)]
+pub struct PublishStatusResponse {
+    publishing: bool,
+    info: Option<PublishInfoResponse>,
+}
+
+#[tauri::command]
+pub fn publish_status(state: tauri::State<AppState>) -> Result<PublishStatusResponse, String> {
+    let publishing = state.publish_running();
+    let info = state
+        .publish_info
+        .lock()
+        .ok()
+        .and_then(|guard| guard.clone());
+    Ok(PublishStatusResponse { publishing, info })
 }
 
 fn normalize_host_key(display_name: &str) -> String {

@@ -353,3 +353,36 @@ export interface ConfigSchemaResponse {
 export async function getConfigSchema(name: string): Promise<ConfigSchemaResponse> {
   return invoke<ConfigSchemaResponse>("get_config_schema", { name });
 }
+
+// --- Publish ---
+
+export interface PublishInfoResponse {
+  url: string;
+  token: string;
+  transport: string;
+}
+
+export interface PublishStatusResponse {
+  publishing: boolean;
+  info: PublishInfoResponse | null;
+}
+
+export async function startPublish(
+  subdomain?: string | null,
+  relay?: string | null,
+  tools?: string[] | null,
+): Promise<PublishInfoResponse> {
+  return invoke<PublishInfoResponse>("start_publish", {
+    subdomain: subdomain ?? null,
+    relay: relay ?? null,
+    tools: tools ?? null,
+  });
+}
+
+export async function stopPublish(): Promise<string> {
+  return invoke<string>("stop_publish");
+}
+
+export async function publishStatus(): Promise<PublishStatusResponse> {
+  return invoke<PublishStatusResponse>("publish_status");
+}

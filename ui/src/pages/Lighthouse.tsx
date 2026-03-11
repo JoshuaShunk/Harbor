@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Loader2, Globe, Trash2, ArrowDown, Shield, Eye, EyeOff, Copy, Check, Radio, Download } from "lucide-react";
+import { Loader2, Globe, Trash2, ArrowDown, Shield, Eye, EyeOff, Copy, Check, Radio, Download, Wifi, ChevronDown, ExternalLink } from "lucide-react";
 import { useGatewayLogs } from "../contexts/LogContext";
 import {
   getStatus,
@@ -9,8 +9,12 @@ import {
   getGatewaySettings,
   setGatewaySettings,
   reloadGateway,
+  startPublish,
+  stopPublish,
+  publishStatus,
   type HarborStatus,
   type GatewaySettingsInfo,
+  type PublishInfoResponse,
 } from "../lib/tauri";
 
 const levelColor: Record<string, string> = {
@@ -40,6 +44,14 @@ function Lighthouse() {
   const [copied, setCopied] = useState(false);
   const [tokenSaved, setTokenSaved] = useState(false);
 
+  // Publish state
+  const [publishing, setPublishing] = useState(false);
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [publishInfo, setPublishInfo] = useState<PublishInfoResponse | null>(null);
+  const [publishCopied, setPublishCopied] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [publishSubdomain, setPublishSubdomain] = useState("");
+
   useEffect(() => {
     getStatus().then(setStatus).catch(() => {});
     gatewayStatus().then(setRunning).catch(() => {});
@@ -47,6 +59,10 @@ function Lighthouse() {
       setSettings(s);
       setExposed(s.host === "0.0.0.0");
       setToken(s.token ?? "");
+    }).catch(() => {});
+    publishStatus().then((s) => {
+      setPublishing(s.publishing);
+      setPublishInfo(s.info);
     }).catch(() => {});
     return () => {
       if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
@@ -169,6 +185,36 @@ function Lighthouse() {
     URL.revokeObjectURL(url);
     setExported(true);
     setTimeout(() => setExported(false), 1500);
+  };
+
+  const handlePublishToggle = async () => {
+    setPublishLoading(true);
+    setMsg(null);
+    try {
+      if (publishing) {
+        await stopPublish();
+        setPublishing(false);
+        setPublishInfo(null);
+        showMsg("Publish stopped", false);
+      } else {
+        const info = await startPublish(
+          publishSubdomain || null,
+          null,
+          null,
+        );
+        setPublishing(true);
+        setPublishInfo(info);
+        showMsg("Published to " + info.url, false);
+      }
+    } catch (e) {
+      showMsg(String(e), true);
+      publishStatus().then((s) => {
+        setPublishing(s.publishing);
+        setPublishInfo(s.info);
+      }).catch(() => {});
+    } finally {
+      setPublishLoading(false);
+    }
   };
 
   const displayPort = status?.gateway_port ?? 3100;
@@ -300,6 +346,96 @@ function Lighthouse() {
               </div>
             )}
           </div>
+        </section>
+      )}
+
+      {/* Publish section — only when gateway is running */}
+      {running && (
+        <section className="rounded-lg bg-bg-element border border-border-subtle mb-4 shrink-0 animate-fade-in">
+          <div className="flex items-center justify-between px-4 py-3 text-[12px]">
+            <div className="flex items-center gap-1.5">
+              <Wifi className={`w-3 h-3 ${publishing ? "text-accent" : "text-text-muted"}`} />
+              <span className="text-text-secondary">Publish to internet</span>
+            </div>
+            <button
+              onClick={handlePublishToggle}
+              disabled={publishLoading}
+              className={`px-3 py-1 rounded-md text-[11px] font-medium transition-colors duration-150 ${
+                publishing
+                  ? "bg-red/10 text-red hover:bg-red/20 border border-red/20"
+                  : "bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20"
+              } ${publishLoading ? "opacity-40 cursor-not-allowed" : ""}`}
+            >
+              {publishLoading ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : publishing ? (
+                "Stop"
+              ) : (
+                "Publish"
+              )}
+            </button>
+          </div>
+
+          {/* Published info */}
+          {publishing && publishInfo && (
+            <div className="border-t border-border-subtle px-4 py-3 space-y-2 text-[12px] animate-fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-text-secondary">Public URL</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(publishInfo.url);
+                    setPublishCopied(true);
+                    setTimeout(() => setPublishCopied(false), 1500);
+                  }}
+                  className="group inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-bg-app hover:bg-bg-hover transition-colors duration-150"
+                >
+                  <code className="font-mono text-[11px] text-accent">
+                    {publishInfo.url}
+                  </code>
+                  {publishCopied
+                    ? <Check className="w-3 h-3 text-green" />
+                    : <Copy className="w-3 h-3 text-text-muted group-hover:text-text-secondary transition-colors" />
+                  }
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-text-secondary">Bearer token</span>
+                <code className="font-mono text-[11px] text-text-muted px-2 py-0.5 rounded bg-bg-app">
+                  {publishInfo.token.slice(0, 12)}...
+                </code>
+              </div>
+            </div>
+          )}
+
+          {/* Advanced options (collapsed by default) */}
+          {!publishing && (
+            <div className="border-t border-border-subtle">
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="flex items-center gap-1 px-4 py-2 text-[11px] text-text-muted hover:text-text-secondary transition-colors w-full"
+              >
+                <ChevronDown className={`w-3 h-3 transition-transform ${showAdvanced ? "rotate-0" : "-rotate-90"}`} />
+                Advanced
+              </button>
+              {showAdvanced && (
+                <div className="px-4 pb-3 space-y-2 animate-fade-in">
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-text-secondary">Subdomain</label>
+                    <input
+                      type="text"
+                      placeholder="auto-assigned"
+                      value={publishSubdomain}
+                      onChange={(e) => setPublishSubdomain(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-md text-[12px] font-mono bg-bg-app border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:border-accent focus:ring-accent/30 transition-colors duration-150"
+                    />
+                    <p className="text-[10px] text-text-muted">
+                      Your tools will be available at subdomain.relay.harbormcp.ai
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </section>
       )}
 
