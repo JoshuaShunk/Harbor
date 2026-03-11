@@ -89,8 +89,36 @@ Harbor uses a nautical theme — every command has a standard alias if you prefe
 | `harbor scout` | `search` | Scout the seas for MCP servers |
 | `harbor chest` | `vault` | Open the treasure chest (secret vault) |
 | `harbor cargo` | `filter` | Inspect or filter tool access per server |
+| `harbor crew` | `team` | Manage team fleet sync across your crew |
 | `harbor scuttle` | `uninstall` | Scuttle the ship (uninstall Harbor) |
 | `harbor update` | — | Update Harbor to the latest version |
+
+### Team Fleet Sync (`harbor crew`)
+
+Share MCP server configs across your team via a git-backed fleet repository. Secrets stay local — only `vault:KEY_NAME` references are committed.
+
+```sh
+# Set up a shared fleet (one person)
+harbor crew init --git git@github.com:your-org/fleet.git
+harbor crew push github linear          # share servers with the team
+
+# Teammates join
+harbor crew join git@github.com:your-org/fleet.git
+
+# Day-to-day workflow
+harbor crew pull                        # pull upstream changes
+harbor crew status                      # see drift at a glance
+harbor crew provision                   # stow any missing vault secrets
+```
+
+| Subcommand | Description |
+|------------|-------------|
+| `crew init [--git <url>]` | Initialize a local fleet repo, optionally linking a remote |
+| `crew join <git-url>` | Clone a team fleet and auto-pull |
+| `crew push [<servers>] [-m <msg>]` | Share servers with the team |
+| `crew pull [--dry-run]` | Merge upstream changes into your local config |
+| `crew status` | Show git sync status and per-server drift |
+| `crew provision [--dry-run]` | Prompt for missing vault secrets |
 
 ## Supported Hosts
 

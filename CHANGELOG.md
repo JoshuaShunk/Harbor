@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-03-11
+
+### Added
+
+- `harbor crew` command group for git-backed team fleet sync (`init`, `join`, `push`, `pull`, `status`, `provision`)
+- `harbor crew init [--git <url>]` — initialize `~/.harbor/fleet/` as a git repo with optional remote
+- `harbor crew join <git-url>` — clone a team fleet and auto-merge on first pull
+- `harbor crew push [<servers>] [-m <msg>]` — mark servers as fleet-managed and commit/push to the shared repo
+- `harbor crew pull [--dry-run]` — fetch upstream and 3-way merge fleet servers into local config
+- `harbor crew status` — show git divergence (ahead/behind) and per-server state
+- `harbor crew provision [--dry-run]` — scan fleet for missing vault secrets and prompt to stow them
+- Hash-based drift detection: SHA-256 of `FleetServerDef` tracks hand-edits since the last pull; locally modified servers are skipped on pull with clear resolution hints
+- Per-machine state (enabled, auto_start, host connections) is excluded from the fleet definition and never overwritten by a pull
+- Fleet source badge on server cards in the desktop app (blue "fleet" chip)
+- "modified" badge on server cards when local edits drift from the last pull
+- Crew section in Settings page: fleet remote URL, git ahead/behind status, Pull button
+- 44 new unit tests across all five fleet modules (config round-trips, merge logic, git subprocess smoke tests, provision integration)
+
 ## [0.3.3] - 2026-03-04
 
 ### Added
@@ -78,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Smithery marketplace search integration
 - `vault:` references in env vars resolved at sync time
 
-[Unreleased]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/JoshuaShunk/Harbor/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/JoshuaShunk/Harbor/compare/v0.3.3...v0.5.5
 [0.2.4]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.1...v0.2.2
