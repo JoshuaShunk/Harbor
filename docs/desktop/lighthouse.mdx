@@ -1,10 +1,10 @@
 ---
 title: "Lighthouse (Gateway)"
 sidebarTitle: "Lighthouse"
-description: "Start and monitor the HTTP/SSE gateway from the Lighthouse page."
+description: "Start and monitor the HTTP/SSE gateway, and publish your tools to the internet."
 ---
 
-The **Lighthouse** page is a dedicated control panel for Harbor's HTTP/SSE gateway. It lets you start, stop, and monitor the gateway that exposes your MCP servers over the network.
+The **Lighthouse** page is the control panel for Harbor's HTTP/SSE gateway. It lets you start, stop, and monitor the gateway that exposes your MCP servers over the network — and publish them to the internet via a secure tunnel.
 
 ## Controls
 
@@ -14,6 +14,41 @@ The **Lighthouse** page is a dedicated control panel for Harbor's HTTP/SSE gatew
 | **Expose to network** | Toggle between localhost-only (`127.0.0.1`) and network-accessible (`0.0.0.0`) |
 | **Bearer token** | Set a token required for remote (non-localhost) access |
 | **Endpoint URL** | Shows the gateway URL — click to copy |
+
+## Publish to Internet
+
+The **Publish** section lets you expose your gateway to the internet without opening firewall ports or configuring a static IP. Click **Publish** and Harbor establishes an outbound QUIC tunnel to the relay server.
+
+Once published:
+
+| Field | Description |
+|-------|-------------|
+| **Public URL** | The internet-accessible endpoint — click to copy |
+| **Bearer token** | Auto-generated token required by remote callers — click to copy |
+
+### Advanced options
+
+Expand **Advanced** before publishing to set a custom subdomain (e.g. `myname` → `myname.relay.harbormcp.ai`). Leave blank for a random auto-assigned subdomain.
+
+### Connecting from another machine
+
+Use the public URL and bearer token to connect any MCP client:
+
+```sh
+# Claude Code
+claude mcp add harbor --transport http https://abc123.relay.harbormcp.ai/mcp \
+  --header "Authorization: Bearer hbr_..."
+
+# curl
+curl -X POST https://abc123.relay.harbormcp.ai/mcp \
+  -H "Authorization: Bearer hbr_..." \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}'
+```
+
+You can also add it as a remote server in another Harbor instance via **Servers → Add Server → Remote**.
+
+See the [Publishing guide](/guides/publishing) for self-hosting, security details, and CLI usage.
 
 ## Signal Log
 
@@ -25,6 +60,8 @@ The Lighthouse page includes a live log viewer that streams gateway activity in 
 
 ## Security
 
-When exposed to the network (`0.0.0.0`), you should configure a bearer token for authentication. Localhost connections are always trusted — no token required. Remote connections without a valid `Authorization: Bearer <token>` header are rejected.
+When exposed to the network (`0.0.0.0`), configure a bearer token for authentication. Localhost connections are always trusted — no token required. Remote connections without a valid `Authorization: Bearer <token>` header are rejected with `401`.
+
+Published tunnels are always protected by a bearer token — unauthenticated requests are rejected at the relay before they reach your machine.
 
 See the [gateway guide](/guides/gateway) for endpoint details and configuration.

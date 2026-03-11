@@ -1,0 +1,218 @@
+---
+title: "Publishing to the Internet"
+sidebarTitle: "Publishing"
+description: "Expose your local Harbor gateway to the internet with a secure QUIC tunnel."
+---
+
+Harbor's **publish** feature creates an outbound QUIC tunnel from your machine to a relay server, giving your local MCP tools a public HTTPS URL. No port forwarding, no static IP required.
+
+## Quick start
+
+### Desktop app
+
+1. Start the gateway on the **Lighthouse** page
+2. Click **Publish** — a public URL and bearer token appear immediately
+3. Share the URL and token with any MCP client
+
+### CLI
+
+```sh
+harbor publish
+```
+
+Output:
+```
+⚓ Harbor Relay
+  URL:   https://abc123.relay.harbormcp.ai
+  Token: hbr_...
+  Press Ctrl+C to stop
+```
+
+## Connecting from another machine
+
+Use the public URL and bearer token in any MCP client:
+
+**Claude Code**
+```sh
+claude mcp add harbor --transport http https://abc123.relay.harbormcp.ai/mcp \
+  --header "Authorization: Bearer hbr_..."
+```
+
+**Cursor** (`~/.cursor/mcp.json`)
+```json
+{
+  "mcpServers": {
+    "harbor": {
+      "url": "https://abc123.relay.harbormcp.ai/mcp",
+      "headers": { "Authorization": "Bearer hbr_..." }
+    }
+  }
+}
+```
+
+**VS Code** (`.vscode/mcp.json`)
+```json
+{
+  "servers": {
+    "harbor": {
+      "type": "http",
+      "url": "https://abc123.relay.harbormcp.ai/mcp",
+      "headers": { "Authorization": "Bearer hbr_..." }
+    }
+  }
+}
+```
+
+**Another Harbor instance** — Servers → Add Server → Remote, paste the URL and `Authorization` header.
+
+## Custom subdomain
+
+Use the **Advanced** section in the desktop UI, or the CLI flag:
+
+```sh
+harbor publish --subdomain myname
+# → https://myname.relay.harbormcp.ai
+```
+
+If the subdomain is already taken, a random one is assigned.
+
+## Security model
+
+| Layer | Protection |
+|-------|------------|
+| **TLS** | All traffic to the relay is HTTPS (Caddy + Let's Encrypt) |
+| **QUIC tunnel** | Noise NKpsk2 protocol — authenticated, forward-secret encryption between your machine and the relay |
+| **PSK** | A pre-shared key compiled into Harbor means only official Harbor binaries can establish tunnels |
+| **Bearer token** | Auto-generated per session — callers without the token receive `401` |
+
+**What the relay can see:** The relay sees the plaintext of requests before encrypting them for the tunnel. This is equivalent to ngrok or Cloudflare Tunnel. If you need full privacy, run your own relay (see below).
+
+## Self-hosting the relay
+
+Any Harbor user can run their own relay server. The relay is the same `harbor` binary — no separate software needed.
+
+### Prerequisites
+
+- A VPS with a public IP (any cloud provider)
+- A domain you control (e.g. `relay.example.com`)
+- Docker and Docker Compose
+
+### 1. DNS records
+
+Add two A records pointing to your VPS IP:
+
+```
+A    relay.example.com      →  <VPS IP>
+A    *.relay.example.com    →  <VPS IP>
+```
+
+The wildcard is required for subdomain routing.
+
+### 2. Firewall ports
+
+```sh
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 7800/udp
+```
+
+### 3. Clone and configure
+
+```sh
+git clone https://github.com/JoshuaShunk/Harbor.git /opt/harbor/repo
+mkdir -p /opt/harbor
+```
+
+Create `/opt/harbor/Caddyfile`:
+```
+relay.example.com, *.relay.example.com {
+    reverse_proxy localhost:8443
+}
+```
+
+<Note>
+For wildcard TLS you need a DNS API provider (e.g. Cloudflare). Standard HTTP challenge only covers the apex domain. See the [Caddy docs](https://caddyserver.com/docs/automatic-https) for DNS challenge setup.
+</Note>
+
+Create `/opt/harbor/docker-compose.yml`:
+```yaml
+services:
+  caddy:
+    image: caddy:latest
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+    restart: unless-stopped
+
+  relay:
+    build:
+      context: ./repo
+      dockerfile: deploy/relay/Dockerfile
+    ports:
+      - "7800:7800/udp"
+      - "8443:8443/tcp"
+    volumes:
+      - relay-data:/data/harbor-relay
+    command:
+      - "--quic-port"
+      - "7800"
+      - "--https-port"
+      - "8443"
+      - "--domain"
+      - "relay.example.com"
+      - "--keypair-file"
+      - "/data/harbor-relay/keypair"
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  relay-data:
+```
+
+### 4. Build and start
+
+```sh
+cd /opt/harbor
+docker compose build relay
+docker compose up -d
+```
+
+### 5. Get your relay's public key
+
+```sh
+docker compose exec relay harbor relay --print-key --keypair-file /data/harbor-relay/keypair
+```
+
+Save this key — your clients need it to connect.
+
+### 6. Publish pointing at your relay
+
+```sh
+harbor publish --relay relay.example.com:7800 --relay-key <key from step 5>
+```
+
+Or in the Harbor desktop UI, open **Advanced** and enter your relay address and key.
+
+### Updating
+
+```sh
+cd /opt/harbor/repo && git pull origin main
+cd /opt/harbor && docker compose build relay && docker compose up -d
+```
+
+### Keypair persistence
+
+The relay keypair is stored in the `relay-data` Docker volume at `/data/harbor-relay/keypair`. It persists across container restarts. If you delete the volume, a new keypair is generated and existing clients will need the new public key.
+
+## Why self-host?
+
+Running your own relay means:
+- **You** are the only operator — no third party can see your traffic
+- The relay code is open source — you can audit exactly what it does
+- Your subdomain is on your own domain
+
+The managed relay at `relay.harbormcp.ai` is convenient for personal use. Self-hosting is recommended if you're handling sensitive data or deploying for a team.

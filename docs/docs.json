@@ -62,6 +62,7 @@
               "guides/oauth",
               "guides/vault",
               "guides/gateway",
+              "guides/publishing",
               "guides/hosts"
             ]
           },
