@@ -49,6 +49,7 @@ function Lighthouse() {
   const [publishLoading, setPublishLoading] = useState(false);
   const [publishInfo, setPublishInfo] = useState<PublishInfoResponse | null>(null);
   const [publishCopied, setPublishCopied] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [publishSubdomain, setPublishSubdomain] = useState("");
 
@@ -400,9 +401,22 @@ function Lighthouse() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-text-secondary">Bearer token</span>
-                <code className="font-mono text-[11px] text-text-muted px-2 py-0.5 rounded bg-bg-app">
-                  {publishInfo.token.slice(0, 12)}...
-                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(publishInfo.token);
+                    setTokenCopied(true);
+                    setTimeout(() => setTokenCopied(false), 1500);
+                  }}
+                  className="group inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-bg-app hover:bg-bg-hover transition-colors duration-150"
+                >
+                  <code className="font-mono text-[11px] text-text-muted">
+                    {publishInfo.token.slice(0, 14)}...
+                  </code>
+                  {tokenCopied
+                    ? <Check className="w-3 h-3 text-green" />
+                    : <Copy className="w-3 h-3 text-text-muted group-hover:text-text-secondary transition-colors" />
+                  }
+                </button>
               </div>
             </div>
           )}
