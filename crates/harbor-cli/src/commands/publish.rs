@@ -62,7 +62,7 @@ pub async fn run(args: PublishArgs) -> Result<(), HarborError> {
         "cloudflare" | "cf" => {
             run_cloudflare(port).await?;
         }
-        "quic" | _ => {
+        _ => {
             run_quic(relay, subdomain, token, tools, relay_key, port).await?;
         }
     }
