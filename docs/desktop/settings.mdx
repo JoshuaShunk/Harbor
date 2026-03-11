@@ -1,7 +1,7 @@
 ---
 title: "Helm (Settings)"
 sidebarTitle: "Settings"
-description: "Configure Harbor's vault, OAuth, theme, and updates."
+description: "Configure Harbor's vault, OAuth, crew sync, theme, and updates."
 ---
 
 The **Helm** page is your control center for Harbor's settings.
@@ -52,6 +52,16 @@ Each provider has a gear menu with the following options:
 - **Re-charter** — Re-authorize with fresh tokens
 - **Revoke** — Clear stored tokens
 - **Own Papers** — Set custom OAuth client credentials (client ID/secret) instead of Harbor's defaults
+
+### Crew (Team Sync)
+
+Manage your team's shared fleet of MCP servers without leaving the app:
+
+- **Remote URL** — The git remote your fleet is synced to
+- **Sync status** — How many commits you are ahead or behind the remote
+- **Pull** — Fetch upstream changes and merge them into your local config
+
+The Crew section appears once you have initialized a fleet with `harbor crew init`. For the full setup flow, see the [team sync guide](/guides/team-sync).
 
 <Note>
 The Lighthouse (gateway) configuration has moved to its own [dedicated page](/desktop/lighthouse).

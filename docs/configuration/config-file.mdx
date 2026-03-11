@@ -66,7 +66,7 @@ Authorization = "Bearer vault:github_personal_access_token"
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `source` | string | — | How the server was sourced (e.g., `native:github`, `registry:@mcp/server`) |
+| `source` | string | — | How the server was sourced (e.g., `native:github`, `registry:@mcp/server`, `"fleet"` for team-managed servers) |
 | `command` | string | — | Executable to run (for stdio servers). Mutually exclusive with `url`. |
 | `args` | string[] | `[]` | Arguments passed to the command |
 | `env` | map | `{}` | Environment variables (supports `vault:KEY` references) |

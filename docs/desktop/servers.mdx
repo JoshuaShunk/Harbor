@@ -44,6 +44,17 @@ Expand any running server to see its available tools. You can:
 - **Allowlist** specific tools to expose only those
 - Set **per-host overrides** so different hosts see different tools
 
+## Fleet-Managed Servers
+
+Servers shared via [team fleet sync](/guides/team-sync) are distinguished by status badges on their cards:
+
+| Badge | Color | Meaning |
+|-------|-------|---------|
+| `fleet` | Blue | Server is managed by the shared fleet and matches the last-pulled definition |
+| `modified` | Amber | Server definition has drifted from the fleet since the last pull |
+
+A `modified` badge means you have edited the server locally. Harbor skips it on the next `harbor crew pull` to protect your changes. To resolve, either accept the upstream version (`harbor undock <name>` then `harbor crew pull`) or share your version with the team (`harbor crew push <name>`).
+
 ## Syncing to Hosts
 
 <Note>
