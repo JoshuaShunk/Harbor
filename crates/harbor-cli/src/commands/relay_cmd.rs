@@ -53,9 +53,8 @@ fn load_or_generate_keypair(path: &std::path::Path) -> Result<Keypair, HarborErr
                 HarborError::RelayError(format!("Failed to create keypair directory: {e}"))
             })?;
         }
-        std::fs::write(path, kp.to_file_format()).map_err(|e| {
-            HarborError::RelayError(format!("Failed to save keypair: {e}"))
-        })?;
+        std::fs::write(path, kp.to_file_format())
+            .map_err(|e| HarborError::RelayError(format!("Failed to save keypair: {e}")))?;
         Ok(kp)
     }
 }
@@ -80,10 +79,7 @@ pub async fn run(args: RelayCmdArgs) -> Result<(), HarborError> {
         return Ok(());
     }
 
-    let domain = args
-        .domain
-        .as_deref()
-        .unwrap_or("relay.harbormcp.ai");
+    let domain = args.domain.as_deref().unwrap_or("relay.harbormcp.ai");
 
     println!("{}", "⚓ Harbor Relay Server".bold());
     println!("  QUIC:   0.0.0.0:{}", args.quic_port);

@@ -248,12 +248,13 @@ async fn handle_tunnel_connection(
     info!("New tunnel connection from {remote}");
 
     // Accept the control stream (first bidirectional stream)
-    let (mut send, mut recv) = connection
-        .accept_bi()
-        .await
-        .map_err(|e| HarborError::TunnelConnectionFailed {
-            reason: format!("Failed to accept control stream: {e}"),
-        })?;
+    let (mut send, mut recv) =
+        connection
+            .accept_bi()
+            .await
+            .map_err(|e| HarborError::TunnelConnectionFailed {
+                reason: format!("Failed to accept control stream: {e}"),
+            })?;
 
     // Perform Noise responder handshake
     let mut hs = HandshakeState::responder(&state.keypair)?;
@@ -363,11 +364,11 @@ async fn handle_tunnel_connection(
         bearer_token: bearer_token.clone(),
     };
     let reg_bytes = registered.encode()?;
-    send.write_all(&reg_bytes).await.map_err(|e| {
-        HarborError::TunnelConnectionFailed {
+    send.write_all(&reg_bytes)
+        .await
+        .map_err(|e| HarborError::TunnelConnectionFailed {
             reason: format!("Failed to send registration response: {e}"),
-        }
-    })?;
+        })?;
 
     info!("Tunnel registered: {subdomain} (id: {tunnel_id}) from {remote}");
 
@@ -513,9 +514,7 @@ async fn handle_mcp_request(
 
         // Build envelope and encrypt
         let request_id = uuid::Uuid::new_v4().to_string();
-        let session_id = headers
-            .get("mcp-session-id")
-            .and_then(|v| v.to_str().ok());
+        let session_id = headers.get("mcp-session-id").and_then(|v| v.to_str().ok());
 
         let body_bytes =
             serde_json::to_vec(&body).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

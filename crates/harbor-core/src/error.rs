@@ -51,7 +51,6 @@ pub enum HarborError {
     TomlSerialize(#[from] toml::ser::Error),
 
     // --- Relay / Publish errors ---
-
     #[error("Relay error: {0}")]
     RelayError(String),
 

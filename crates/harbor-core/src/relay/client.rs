@@ -92,11 +92,11 @@ impl PublishClient {
 
         // Resolve relay address
         let relay_socket: std::net::SocketAddr = if relay_addr.contains(':') {
-            relay_addr.parse().map_err(|e| {
-                HarborError::TunnelConnectionFailed {
+            relay_addr
+                .parse()
+                .map_err(|e| HarborError::TunnelConnectionFailed {
                     reason: format!("Invalid relay address '{relay_addr}': {e}"),
-                }
-            })?
+                })?
         } else {
             format!("{relay_addr}:7800").parse().map_err(|e| {
                 HarborError::TunnelConnectionFailed {
@@ -119,11 +119,13 @@ impl PublishClient {
         info!("QUIC connection established to {relay_addr}");
 
         // Open control stream
-        let (mut send, mut recv) = connection.open_bi().await.map_err(|e| {
-            HarborError::TunnelConnectionFailed {
-                reason: format!("Failed to open control stream: {e}"),
-            }
-        })?;
+        let (mut send, mut recv) =
+            connection
+                .open_bi()
+                .await
+                .map_err(|e| HarborError::TunnelConnectionFailed {
+                    reason: format!("Failed to open control stream: {e}"),
+                })?;
 
         // Perform Noise initiator handshake.
         // If no key provided, auto-fetch from the relay's HTTPS info endpoint.
@@ -187,11 +189,11 @@ impl PublishClient {
             tools: self.config.tools.clone(),
         };
         let reg_bytes = register.encode()?;
-        send.write_all(&reg_bytes).await.map_err(|e| {
-            HarborError::TunnelConnectionFailed {
+        send.write_all(&reg_bytes)
+            .await
+            .map_err(|e| HarborError::TunnelConnectionFailed {
                 reason: format!("Failed to send registration: {e}"),
-            }
-        })?;
+            })?;
 
         // Read registration response
         let mut resp_buf = vec![0u8; 65535];

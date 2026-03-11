@@ -25,10 +25,8 @@ const NOISE_PATTERN: &str = "Noise_NKpsk2_25519_ChaChaPoly_BLAKE2s";
 /// layer before registration. To rotate: change this value and rebuild both
 /// the relay server and client binaries.
 const HARBOR_RELAY_PSK: [u8; 32] = [
-    0x88, 0xaa, 0x05, 0x6a, 0xbd, 0x02, 0xa6, 0xf9,
-    0x30, 0x29, 0x2d, 0x96, 0x33, 0xc9, 0x10, 0xf5,
-    0x03, 0xd6, 0xdd, 0xed, 0xe4, 0x2a, 0xd6, 0x3d,
-    0x40, 0x01, 0x8a, 0x7e, 0xcc, 0xc9, 0xd5, 0x0a,
+    0x88, 0xaa, 0x05, 0x6a, 0xbd, 0x02, 0xa6, 0xf9, 0x30, 0x29, 0x2d, 0x96, 0x33, 0xc9, 0x10, 0xf5,
+    0x03, 0xd6, 0xdd, 0xed, 0xe4, 0x2a, 0xd6, 0x3d, 0x40, 0x01, 0x8a, 0x7e, 0xcc, 0xc9, 0xd5, 0x0a,
 ];
 
 /// A static Noise keypair (32-byte public + private keys).
@@ -58,7 +56,11 @@ impl Keypair {
 
     /// Serialize keypair for persistence as "pubhex:privhex".
     pub fn to_file_format(&self) -> String {
-        format!("{}:{}", hex::encode(self.public), hex::encode(&self.private))
+        format!(
+            "{}:{}",
+            hex::encode(self.public),
+            hex::encode(&self.private)
+        )
     }
 
     /// Load keypair from "pubhex:privhex" format.
@@ -136,7 +138,10 @@ impl HandshakeState {
     /// Write a handshake message (call alternately: initiator writes first).
     pub fn write_message(&mut self, payload: &[u8]) -> Result<Vec<u8>> {
         let mut buf = vec![0u8; 65535];
-        let len = self.inner.write_message(payload, &mut buf).map_err(noise_err)?;
+        let len = self
+            .inner
+            .write_message(payload, &mut buf)
+            .map_err(noise_err)?;
         buf.truncate(len);
         Ok(buf)
     }
@@ -144,7 +149,10 @@ impl HandshakeState {
     /// Read a handshake message.
     pub fn read_message(&mut self, message: &[u8]) -> Result<Vec<u8>> {
         let mut buf = vec![0u8; 65535];
-        let len = self.inner.read_message(message, &mut buf).map_err(noise_err)?;
+        let len = self
+            .inner
+            .read_message(message, &mut buf)
+            .map_err(noise_err)?;
         buf.truncate(len);
         Ok(buf)
     }
@@ -175,7 +183,10 @@ impl TransportCipher {
     /// Encrypt a plaintext payload.
     pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<Vec<u8>> {
         let mut buf = vec![0u8; plaintext.len() + 64]; // AEAD tag overhead
-        let len = self.inner.write_message(plaintext, &mut buf).map_err(noise_err)?;
+        let len = self
+            .inner
+            .write_message(plaintext, &mut buf)
+            .map_err(noise_err)?;
         buf.truncate(len);
         Ok(buf)
     }
@@ -183,7 +194,10 @@ impl TransportCipher {
     /// Decrypt a ciphertext payload.
     pub fn decrypt(&mut self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let mut buf = vec![0u8; ciphertext.len()];
-        let len = self.inner.read_message(ciphertext, &mut buf).map_err(noise_err)?;
+        let len = self
+            .inner
+            .read_message(ciphertext, &mut buf)
+            .map_err(noise_err)?;
         buf.truncate(len);
         Ok(buf)
     }

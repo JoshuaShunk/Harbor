@@ -74,10 +74,9 @@ impl Transport for CloudflareTransport {
         // Parse stderr for the assigned URL
         // cloudflared prints: "Your quick Tunnel has been created! Visit it at (URL)"
         // or on newer versions: "https://xxx.trycloudflare.com" in the INF log lines
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or_else(|| HarborError::RelayError("Failed to capture cloudflared stderr".into()))?;
+        let stderr = child.stderr.take().ok_or_else(|| {
+            HarborError::RelayError("Failed to capture cloudflared stderr".into())
+        })?;
 
         let mut reader = tokio::io::BufReader::new(stderr).lines();
 

@@ -230,14 +230,7 @@ mod tests {
 
     #[test]
     fn test_response_from_request() {
-        let request = RelayMessage::request(
-            "t1",
-            "tools/call",
-            Some("search"),
-            None,
-            "r1",
-            vec![],
-        );
+        let request = RelayMessage::request("t1", "tools/call", Some("search"), None, "r1", vec![]);
 
         let response = RelayMessage::response(&request.envelope, b"response data".to_vec());
         assert_eq!(response.envelope.direction, Direction::Response);

@@ -107,9 +107,7 @@ async fn run_quic(
             println!("  Token:     {}", info.token.dimmed());
             println!("  Transport: {}", info.transport);
             println!();
-            println!(
-                "Remote clients can connect with:",
-            );
+            println!("Remote clients can connect with:",);
             println!(
                 "  curl -X POST {}/mcp -H 'Authorization: Bearer {}' -H 'Content-Type: application/json'",
                 info.url, info.token
