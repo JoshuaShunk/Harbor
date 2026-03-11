@@ -3,6 +3,10 @@
 
 FROM rust:latest AS builder
 
+RUN apt-get update && apt-get install -y \
+    pkg-config libdbus-1-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /build
 
 # Copy workspace files
