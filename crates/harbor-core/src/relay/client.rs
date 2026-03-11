@@ -27,8 +27,26 @@ impl PublishClient {
         Self { config }
     }
 
+    /// Run the publish client, sending publish info via channel as soon as
+    /// registration succeeds. Blocks until shutdown signal is received.
+    pub async fn run_with_info(
+        &self,
+        shutdown: oneshot::Receiver<()>,
+        info_tx: oneshot::Sender<PublishInfo>,
+    ) -> Result<PublishInfo> {
+        self.run_inner(shutdown, Some(info_tx)).await
+    }
+
     /// Run the publish client. Blocks until shutdown signal is received.
     pub async fn run(&self, shutdown: oneshot::Receiver<()>) -> Result<PublishInfo> {
+        self.run_inner(shutdown, None).await
+    }
+
+    async fn run_inner(
+        &self,
+        shutdown: oneshot::Receiver<()>,
+        info_tx: Option<oneshot::Sender<PublishInfo>>,
+    ) -> Result<PublishInfo> {
         let relay_addr = self
             .config
             .relay_addr
@@ -42,6 +60,9 @@ impl PublishClient {
             Some(hex_key) => Some(Keypair::public_from_hex(hex_key)?),
             None => None,
         };
+
+        // Rustls 0.23 requires an explicit crypto provider
+        let _ = rustls::crypto::ring::default_provider().install_default();
 
         // Create QUIC client endpoint
         let mut endpoint = quinn::Endpoint::client("0.0.0.0:0".parse().map_err(|e| {
@@ -104,15 +125,33 @@ impl PublishClient {
             }
         })?;
 
-        // Perform Noise initiator handshake
-        // For managed relay, we don't have the public key — use a generated one
-        // (the relay's identity is verified by TLS in production)
-        let relay_pk = relay_public_key.unwrap_or_else(|| {
-            // For managed relay without key pinning, generate a dummy handshake
-            // In production, the managed relay's key would be well-known
-            warn!("No relay public key configured — using unverified handshake");
-            [0u8; 32] // Placeholder — real deployment needs key pinning
-        });
+        // Perform Noise initiator handshake.
+        // If no key provided, auto-fetch from the relay's HTTPS info endpoint.
+        let relay_pk = match relay_public_key {
+            Some(pk) => pk,
+            None => {
+                let host = relay_addr.split(':').next().unwrap_or(relay_addr);
+                let info_url = format!("https://{host}/");
+                info!("Fetching relay public key from {info_url}");
+                let body: serde_json::Value = reqwest::get(&info_url)
+                    .await
+                    .map_err(|e| HarborError::TunnelConnectionFailed {
+                        reason: format!("Failed to fetch relay info from {info_url}: {e}"),
+                    })?
+                    .json()
+                    .await
+                    .map_err(|e| HarborError::TunnelConnectionFailed {
+                        reason: format!("Failed to parse relay info: {e}"),
+                    })?;
+                let hex_key = body
+                    .get("public_key")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| HarborError::TunnelConnectionFailed {
+                        reason: "Relay info response missing 'public_key' field".into(),
+                    })?;
+                Keypair::public_from_hex(hex_key)?
+            }
+        };
 
         let mut hs = HandshakeState::initiator(&relay_pk)?;
 
@@ -193,6 +232,11 @@ impl PublishClient {
 
         info!("Published at {public_url}");
         info!("Bearer token: {bearer_token}");
+
+        // Send publish info early if a channel was provided
+        if let Some(tx) = info_tx {
+            let _ = tx.send(publish_info.clone());
+        }
 
         // Spawn heartbeat task
         let heartbeat_send = connection.clone();

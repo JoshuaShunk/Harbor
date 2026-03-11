@@ -43,6 +43,35 @@ impl Keypair {
         hex::encode(self.public)
     }
 
+    /// Serialize keypair for persistence as "pubhex:privhex".
+    pub fn to_file_format(&self) -> String {
+        format!("{}:{}", hex::encode(self.public), hex::encode(&self.private))
+    }
+
+    /// Load keypair from "pubhex:privhex" format.
+    pub fn from_file_format(s: &str) -> Result<Self> {
+        let (pub_hex, priv_hex) = s.trim().split_once(':').ok_or_else(|| {
+            HarborError::NoiseHandshakeFailed("Invalid keypair file format".into())
+        })?;
+        let pub_bytes = hex::decode(pub_hex).map_err(|e| {
+            HarborError::NoiseHandshakeFailed(format!("Invalid public key hex: {e}"))
+        })?;
+        let priv_bytes = hex::decode(priv_hex).map_err(|e| {
+            HarborError::NoiseHandshakeFailed(format!("Invalid private key hex: {e}"))
+        })?;
+        if pub_bytes.len() != 32 {
+            return Err(HarborError::NoiseHandshakeFailed(
+                "Public key must be 32 bytes".into(),
+            ));
+        }
+        let mut public = [0u8; 32];
+        public.copy_from_slice(&pub_bytes);
+        Ok(Self {
+            public,
+            private: priv_bytes,
+        })
+    }
+
     /// Decode public key from hex string.
     pub fn public_from_hex(hex_str: &str) -> Result<[u8; 32]> {
         let bytes = hex::decode(hex_str).map_err(|e| {

@@ -21,6 +21,8 @@ services:
       - "${HARBOR_HTTPS_PORT:-8443}:8443/tcp"
     environment:
       - RUST_LOG=harbor=info
+    volumes:
+      - relay-data:/data/harbor-relay
     command:
       - "--quic-port"
       - "7800"
@@ -28,6 +30,11 @@ services:
       - "8443"
       - "--domain"
       - "${HARBOR_RELAY_DOMAIN:-relay.harbormcp.ai}"
+      - "--keypair-file"
+      - "/data/harbor-relay/keypair"
     # Uncomment to add auth token requirement:
     # - "--auth-token"
     # - "${HARBOR_RELAY_TOKEN}"
+
+volumes:
+  relay-data:

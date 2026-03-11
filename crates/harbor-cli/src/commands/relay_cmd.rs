@@ -1,5 +1,6 @@
 use clap::Args;
 use colored::Colorize;
+use harbor_core::relay::crypto::Keypair;
 use harbor_core::relay::{RelayConfig, RelayServer};
 use harbor_core::HarborError;
 use std::path::PathBuf;
@@ -34,9 +35,34 @@ pub struct RelayCmdArgs {
     /// Print the relay's public key and exit
     #[arg(long)]
     pub print_key: bool,
+
+    /// File to persist the relay keypair (load if exists, generate+save if not)
+    #[arg(long, default_value = "/data/harbor-relay/keypair")]
+    pub keypair_file: PathBuf,
+}
+
+fn load_or_generate_keypair(path: &std::path::Path) -> Result<Keypair, HarborError> {
+    if path.exists() {
+        let s = std::fs::read_to_string(path)
+            .map_err(|e| HarborError::RelayError(format!("Failed to read keypair file: {e}")))?;
+        Keypair::from_file_format(&s)
+    } else {
+        let kp = Keypair::generate()?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                HarborError::RelayError(format!("Failed to create keypair directory: {e}"))
+            })?;
+        }
+        std::fs::write(path, kp.to_file_format()).map_err(|e| {
+            HarborError::RelayError(format!("Failed to save keypair: {e}"))
+        })?;
+        Ok(kp)
+    }
 }
 
 pub async fn run(args: RelayCmdArgs) -> Result<(), HarborError> {
+    let keypair = load_or_generate_keypair(&args.keypair_file)?;
+
     let config = RelayConfig {
         quic_port: args.quic_port,
         https_port: args.https_port,
@@ -47,7 +73,7 @@ pub async fn run(args: RelayCmdArgs) -> Result<(), HarborError> {
         ..RelayConfig::default()
     };
 
-    let server = RelayServer::new(config)?;
+    let server = RelayServer::with_keypair(config, keypair);
 
     if args.print_key {
         println!("{}", server.public_key_hex());
