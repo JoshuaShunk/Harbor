@@ -1,8 +1,11 @@
 pub mod claude;
 pub mod claude_desktop;
+pub mod cline;
 pub mod codex;
 pub mod cursor;
+pub mod roo_code;
 pub mod vscode;
+pub mod windsurf;
 
 use crate::config::ServerConfig;
 use crate::error::Result;
@@ -67,9 +70,12 @@ pub fn get_connector(host: &str) -> Result<Box<dyn Connector>> {
     match host {
         "claude" => Ok(Box::new(claude::ClaudeConnector::new())),
         "claude-desktop" => Ok(Box::new(claude_desktop::ClaudeDesktopConnector::new())),
+        "cline" => Ok(Box::new(cline::ClineConnector::new())),
         "codex" => Ok(Box::new(codex::CodexConnector::new())),
-        "vscode" => Ok(Box::new(vscode::VsCodeConnector::new())),
         "cursor" => Ok(Box::new(cursor::CursorConnector::new())),
+        "roo-code" => Ok(Box::new(roo_code::RooCodeConnector::new())),
+        "vscode" => Ok(Box::new(vscode::VsCodeConnector::new())),
+        "windsurf" => Ok(Box::new(windsurf::WindsurfConnector::new())),
         _ => Err(crate::error::HarborError::ConnectorError {
             host: host.to_string(),
             reason: format!("Unknown host: {host}"),
@@ -82,9 +88,12 @@ pub fn all_connectors() -> Vec<Box<dyn Connector>> {
     vec![
         Box::new(claude::ClaudeConnector::new()),
         Box::new(claude_desktop::ClaudeDesktopConnector::new()),
+        Box::new(cline::ClineConnector::new()),
         Box::new(codex::CodexConnector::new()),
-        Box::new(vscode::VsCodeConnector::new()),
         Box::new(cursor::CursorConnector::new()),
+        Box::new(roo_code::RooCodeConnector::new()),
+        Box::new(vscode::VsCodeConnector::new()),
+        Box::new(windsurf::WindsurfConnector::new()),
     ]
 }
 
@@ -145,7 +154,16 @@ mod tests {
 
     #[test]
     fn test_get_connector_valid_hosts() {
-        let hosts = ["claude", "claude-desktop", "codex", "vscode", "cursor"];
+        let hosts = [
+            "claude",
+            "claude-desktop",
+            "cline",
+            "codex",
+            "cursor",
+            "roo-code",
+            "vscode",
+            "windsurf",
+        ];
         for host in &hosts {
             let connector = get_connector(host);
             assert!(connector.is_ok(), "Failed to get connector for {}", host);
@@ -159,9 +177,9 @@ mod tests {
     }
 
     #[test]
-    fn test_all_connectors_returns_five() {
+    fn test_all_connectors_returns_eight() {
         let connectors = all_connectors();
-        assert_eq!(connectors.len(), 5);
+        assert_eq!(connectors.len(), 8);
     }
 
     #[test]
@@ -180,12 +198,30 @@ mod tests {
 
         let cursor = get_connector("cursor").unwrap();
         assert_eq!(cursor.host_name(), "Cursor");
+
+        let cline = get_connector("cline").unwrap();
+        assert_eq!(cline.host_name(), "Cline");
+
+        let roo_code = get_connector("roo-code").unwrap();
+        assert_eq!(roo_code.host_name(), "Roo Code");
+
+        let windsurf = get_connector("windsurf").unwrap();
+        assert_eq!(windsurf.host_name(), "Windsurf");
     }
 
     #[test]
     fn test_connector_config_paths_are_valid() {
         // Each connector should return a valid path (not error)
-        let hosts = ["claude", "claude-desktop", "codex", "vscode", "cursor"];
+        let hosts = [
+            "claude",
+            "claude-desktop",
+            "cline",
+            "codex",
+            "cursor",
+            "roo-code",
+            "vscode",
+            "windsurf",
+        ];
         for host in &hosts {
             let connector = get_connector(host).unwrap();
             let path = connector.config_path();

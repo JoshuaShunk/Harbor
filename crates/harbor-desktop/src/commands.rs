@@ -1484,9 +1484,12 @@ fn normalize_host_key(display_name: &str) -> String {
     match display_name {
         "Claude Code" => "claude".to_string(),
         "Claude Desktop" => "claude-desktop".to_string(),
+        "Cline" => "cline".to_string(),
         "Codex" => "codex".to_string(),
-        "VS Code" => "vscode".to_string(),
         "Cursor" => "cursor".to_string(),
+        "Roo Code" => "roo-code".to_string(),
+        "VS Code" => "vscode".to_string(),
+        "Windsurf" => "windsurf".to_string(),
         other => other.to_lowercase().replace(' ', ""),
     }
 }
