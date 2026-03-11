@@ -1,7 +1,7 @@
 # Harbor Relay Server — Multi-stage Docker build
 # Runs the Harbor relay server for proxying remote MCP requests.
 
-FROM rust:1.83-bookworm AS builder
+FROM rust:1.86-bookworm AS builder
 
 WORKDIR /build
 
