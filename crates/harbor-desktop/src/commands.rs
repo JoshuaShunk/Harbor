@@ -1670,9 +1670,7 @@ pub fn set_hide_on_close(state: tauri::State<AppState>, enabled: bool) -> Result
 #[tauri::command]
 pub fn autostart_is_enabled(app: tauri::AppHandle) -> Result<bool, String> {
     use tauri_plugin_autostart::ManagerExt;
-    app.autolaunch()
-        .is_enabled()
-        .map_err(|e| e.to_string())
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
