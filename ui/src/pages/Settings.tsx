@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Trash2, Plus, ChevronDown, ChevronUp, Sun, Moon, Monitor, Settings2, RefreshCw, ArrowDownCircle, Loader2, CheckCircle2, AlertCircle, Users } from "lucide-react";
-import { vaultSet, vaultDelete, vaultList, oauthListProviders, oauthRevokeCharter, oauthSetCustomCredentials, oauthStartCharter, fleetStatus, fleetPull, type OAuthProviderInfo, type FleetStatusResponse } from "../lib/tauri";
+import { vaultSet, vaultDelete, vaultList, oauthListProviders, oauthRevokeCharter, oauthSetCustomCredentials, oauthStartCharter, fleetStatus, fleetPull, getHideOnClose, setHideOnClose, autostartIsEnabled, autostartEnable, autostartDisable, type OAuthProviderInfo, type FleetStatusResponse } from "../lib/tauri";
 import StatusBadge from "../components/StatusBadge";
 import type { Status } from "../components/StatusBadge";
 import { useUpdate } from "../contexts/UpdateContext";
@@ -113,6 +113,8 @@ function Settings() {
   const [crewStatus, setCrewStatus] = useState<FleetStatusResponse | null>(null);
   const [crewPulling, setCrewPulling] = useState(false);
   const [crewMsg, setCrewMsg] = useState<{ text: string; isError: boolean } | null>(null);
+  const [hideOnClose, setHideOnCloseState] = useState(true);
+  const [startAtLogin, setStartAtLoginState] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -140,7 +142,33 @@ function Settings() {
     refreshVault();
     refreshProviders();
     refreshCrewStatus();
+    getHideOnClose().then(setHideOnCloseState).catch(() => {});
+    autostartIsEnabled().then(setStartAtLoginState).catch(() => {});
   }, []);
+
+  const handleHideOnCloseToggle = async () => {
+    const next = !hideOnClose;
+    setHideOnCloseState(next);
+    try {
+      await setHideOnClose(next);
+    } catch {
+      setHideOnCloseState(!next);
+    }
+  };
+
+  const handleStartAtLoginToggle = async () => {
+    const next = !startAtLogin;
+    setStartAtLoginState(next);
+    try {
+      if (next) {
+        await autostartEnable();
+      } else {
+        await autostartDisable();
+      }
+    } catch {
+      setStartAtLoginState(!next);
+    }
+  };
 
   const refreshProviders = async () => {
     try {
@@ -297,6 +325,38 @@ function Settings() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="h-px bg-border-subtle" />
+
+        {/* Hide to tray on close */}
+        <div className="flex items-center justify-between py-2.5">
+          <div>
+            <span className="text-[13px] text-text-primary">Keep running when closed</span>
+            <p className="text-[11px] text-text-muted mt-0.5">Hide to tray instead of quitting — lighthouse keeps running</p>
+          </div>
+          <button
+            onClick={handleHideOnCloseToggle}
+            className={`relative w-9 h-5 rounded-full shrink-0 transition-colors duration-300 ${hideOnClose ? "bg-accent" : "bg-text-muted/30"}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${hideOnClose ? "translate-x-4" : "translate-x-0"}`} />
+          </button>
+        </div>
+
+        <div className="h-px bg-border-subtle" />
+
+        {/* Start at login */}
+        <div className="flex items-center justify-between py-2.5">
+          <div>
+            <span className="text-[13px] text-text-primary">Start at login</span>
+            <p className="text-[11px] text-text-muted mt-0.5">Launch Harbor automatically when you log in</p>
+          </div>
+          <button
+            onClick={handleStartAtLoginToggle}
+            className={`relative w-9 h-5 rounded-full shrink-0 transition-colors duration-300 ${startAtLogin ? "bg-accent" : "bg-text-muted/30"}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${startAtLogin ? "translate-x-4" : "translate-x-0"}`} />
+          </button>
         </div>
 
         <div className="h-px bg-border-subtle" />

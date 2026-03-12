@@ -48,6 +48,10 @@ pub struct HarborSettings {
     /// Relay's public key for Noise handshake (hex-encoded, for self-hosted)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub publish_relay_key: Option<String>,
+
+    /// Hide to system tray instead of quitting when the window is closed (default: true)
+    #[serde(default = "default_hide_on_close")]
+    pub hide_on_close: bool,
 }
 
 impl Default for HarborSettings {
@@ -62,6 +66,7 @@ impl Default for HarborSettings {
             publish_tools: None,
             publish_auto: false,
             publish_relay_key: None,
+            hide_on_close: default_hide_on_close(),
         }
     }
 }
@@ -72,6 +77,10 @@ fn default_gateway_port() -> u16 {
 
 fn default_gateway_host() -> String {
     "127.0.0.1".to_string()
+}
+
+fn default_hide_on_close() -> bool {
+    true
 }
 
 /// Configuration for a single MCP server managed by Harbor

@@ -20,11 +20,20 @@ pub enum PortAction {
 
 #[derive(Args)]
 pub struct HostArg {
-    /// Host name (claude, claude-desktop, codex, vscode, cursor)
+    /// Host name (claude, claude-desktop, codex, vscode, cursor, cline, roo-code, windsurf)
     pub host: String,
 }
 
-const VALID_HOSTS: &[&str] = &["claude", "claude-desktop", "codex", "vscode", "cursor"];
+const VALID_HOSTS: &[&str] = &[
+    "claude",
+    "claude-desktop",
+    "codex",
+    "vscode",
+    "cursor",
+    "cline",
+    "roo-code",
+    "windsurf",
+];
 
 pub async fn run(args: PortArgs) -> Result<(), HarborError> {
     match args.action {

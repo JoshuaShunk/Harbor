@@ -51,8 +51,8 @@ pub enum Commands {
     #[command(alias = "start")]
     Launch(start::StartArgs),
 
-    /// Drop anchor on a running server (requires daemon mode — coming soon)
-    #[command(alias = "stop", hide = true)]
+    /// Drop anchor on a running server started with --detach
+    #[command(alias = "stop")]
     Anchor(stop::StopArgs),
 
     /// Read the harbor manifest

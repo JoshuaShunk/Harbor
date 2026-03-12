@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-03-11
+
+### Added
+
+- `harbor port link` now supports Cline, Roo Code, and Windsurf (previously UI-only)
+- `harbor launch --detach` / `-d` — start a server in the background and return immediately
+- `harbor anchor <name>` — stop a detached server by sending SIGTERM to its stored PID (macOS/Linux) or via `taskkill` (Windows)
+- PID file store at `~/.harbor/run/<name>.pid` tracks detached processes across CLI invocations
+- "Keep running when closed" setting — hides the app to the system tray instead of quitting, so the lighthouse stays running (default: on)
+- "Start at login" setting — registers Harbor as a login item so it launches automatically on startup (default: off)
+- "Open Harbor" item in the system tray menu to restore the window when hidden
+- Settings toggles for both new behaviours in the General section
+
 ## [0.5.5] - 2026-03-11
 
 ### Added
@@ -96,7 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Smithery marketplace search integration
 - `vault:` references in env vars resolved at sync time
 
-[Unreleased]: https://github.com/JoshuaShunk/Harbor/compare/v0.5.5...HEAD
+[Unreleased]: https://github.com/JoshuaShunk/Harbor/compare/v0.5.6...HEAD
+[0.5.6]: https://github.com/JoshuaShunk/Harbor/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/JoshuaShunk/Harbor/compare/v0.3.3...v0.5.5
 [0.2.4]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.2...v0.2.3

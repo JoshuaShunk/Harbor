@@ -60,6 +60,47 @@ impl ManagedProcess {
         Ok(())
     }
 
+    /// Spawn a detached background process. Returns the child PID.
+    /// stdin/stdout/stderr are all null — use this for daemon mode.
+    pub fn spawn_detached(
+        name: &str,
+        config: &ServerConfig,
+        resolved_env: &BTreeMap<String, String>,
+    ) -> Result<u32> {
+        let command = config.command.as_deref().unwrap_or("unknown");
+        info!(server = name, command = %command, "Starting MCP server (detached)");
+
+        let mut cmd = std::process::Command::new(command);
+        cmd.args(&config.args)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            cmd.process_group(0);
+        }
+
+        for (key, value) in resolved_env {
+            cmd.env(key, value);
+        }
+
+        let child = cmd.spawn().map_err(|e| HarborError::ServerStartFailed {
+            name: name.to_string(),
+            reason: e.to_string(),
+        })?;
+
+        let pid = child.id();
+        info!(server = name, pid = pid, "MCP server started (detached)");
+
+        // Drop the Child handle without waiting — the child is reparented to
+        // init and continues running after the CLI exits.
+        drop(child);
+
+        Ok(pid)
+    }
+
     /// Check if the process is still running
     pub fn is_running(&mut self) -> bool {
         match self.child.try_wait() {

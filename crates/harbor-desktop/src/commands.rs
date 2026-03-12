@@ -55,6 +55,13 @@ impl AppState {
             .unwrap_or(false)
     }
 
+    pub fn hide_on_close(&self) -> bool {
+        self.config
+            .lock()
+            .map(|c| c.harbor.hide_on_close)
+            .unwrap_or(true)
+    }
+
     fn with_config_mut<T>(&self, f: impl FnOnce(&mut HarborConfig) -> T) -> Result<T, String> {
         let mut config = self
             .config
@@ -1644,4 +1651,38 @@ fn normalize_host_key(display_name: &str) -> String {
         "Windsurf" => "windsurf".to_string(),
         other => other.to_lowercase().replace(' ', ""),
     }
+}
+
+// -- App behaviour commands --
+
+#[tauri::command]
+pub fn get_hide_on_close(state: tauri::State<AppState>) -> bool {
+    state.hide_on_close()
+}
+
+#[tauri::command]
+pub fn set_hide_on_close(state: tauri::State<AppState>, enabled: bool) -> Result<(), String> {
+    state.with_config_mut(|c| {
+        c.harbor.hide_on_close = enabled;
+    })
+}
+
+#[tauri::command]
+pub fn autostart_is_enabled(app: tauri::AppHandle) -> Result<bool, String> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch()
+        .is_enabled()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn autostart_enable(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().enable().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn autostart_disable(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().disable().map_err(|e| e.to_string())
 }

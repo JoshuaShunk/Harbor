@@ -435,3 +435,25 @@ export async function stopPublish(): Promise<string> {
 export async function publishStatus(): Promise<PublishStatusResponse> {
   return invoke<PublishStatusResponse>("publish_status");
 }
+
+// --- App behaviour ---
+
+export async function getHideOnClose(): Promise<boolean> {
+  return invoke<boolean>("get_hide_on_close");
+}
+
+export async function setHideOnClose(enabled: boolean): Promise<void> {
+  return invoke("set_hide_on_close", { enabled });
+}
+
+export async function autostartIsEnabled(): Promise<boolean> {
+  return invoke<boolean>("autostart_is_enabled");
+}
+
+export async function autostartEnable(): Promise<void> {
+  return invoke("autostart_enable");
+}
+
+export async function autostartDisable(): Promise<void> {
+  return invoke("autostart_disable");
+}

@@ -4,7 +4,8 @@ mod symlink;
 
 use tauri::menu::{MenuBuilder, MenuItem, MenuItemBuilder, SubmenuBuilder};
 use tauri::tray::TrayIconBuilder;
-use tauri::{Emitter, Listener, Manager};
+use tauri::{Emitter, Listener, Manager, WindowEvent};
+use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::UpdaterExt;
 use tracing_subscriber::prelude::*;
@@ -16,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .setup(|app| {
             // Initialize tracing with the Tauri log layer
             let log_layer = logging::TauriLogLayer::new(app.handle().clone());
@@ -166,6 +168,8 @@ pub fn run() {
             });
 
             // -- System tray icon --
+            let tray_open =
+                MenuItem::with_id(app, "tray-open", "Open Harbor", true, None::<&str>)?;
             let tray_status = MenuItem::with_id(
                 app,
                 "tray-status",
@@ -180,6 +184,8 @@ pub fn run() {
             let tray_menu = tauri::menu::Menu::with_items(
                 app,
                 &[
+                    &tray_open,
+                    &tauri::menu::PredefinedMenuItem::separator(app)?,
                     &tray_status,
                     &tauri::menu::PredefinedMenuItem::separator(app)?,
                     &tray_toggle,
@@ -200,7 +206,12 @@ pub fn run() {
                 .menu(&tray_menu)
                 .show_menu_on_left_click(true)
                 .on_menu_event(move |app_handle, event| {
-                    if event.id() == tray_toggle_for_event.id() {
+                    if event.id() == "tray-open" {
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    } else if event.id() == tray_toggle_for_event.id() {
                         let state = app_handle.state::<commands::AppState>();
                         let is_running = state.gateway_running();
                         if is_running {
@@ -234,6 +245,22 @@ pub fn run() {
                     "Start Lighthouse"
                 });
             });
+
+            // Intercept window close: hide to tray if hide_on_close is enabled
+            if let Some(window) = app.get_webview_window("main") {
+                let app_handle = app.handle().clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        let state = app_handle.state::<commands::AppState>();
+                        if state.hide_on_close() {
+                            api.prevent_close();
+                            if let Some(win) = app_handle.get_webview_window("main") {
+                                let _ = win.hide();
+                            }
+                        }
+                    }
+                });
+            }
 
             Ok(())
         })
@@ -283,6 +310,11 @@ pub fn run() {
             commands::clear_request_logs,
             commands::fleet_status,
             commands::fleet_pull,
+            commands::get_hide_on_close,
+            commands::set_hide_on_close,
+            commands::autostart_is_enabled,
+            commands::autostart_enable,
+            commands::autostart_disable,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Harbor");
