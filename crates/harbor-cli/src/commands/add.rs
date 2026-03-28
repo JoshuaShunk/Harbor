@@ -70,10 +70,9 @@ pub async fn run(args: AddArgs) -> Result<(), HarborError> {
         if let Some(native) = harbor_core::catalog::lookup(native_id) {
             return run_native(native, args).await;
         }
-        // Not a known native server — give a helpful error
         let ids = harbor_core::catalog::all_ids();
         return Err(HarborError::ConfigParse(format!(
-            "Unknown native server '{}'. Available: {}\n\
+            "Unknown server '{}'. Available: {}\n\
              For custom servers, use: harbor dock --name {} --command <cmd> --args <args>",
             native_id,
             ids.join(", "),
@@ -308,4 +307,97 @@ async fn run_custom(args: AddArgs) -> Result<(), HarborError> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_header_valid() {
+        let result = parse_header("Content-Type:application/json");
+        assert!(result.is_ok());
+        let (key, value) = result.unwrap();
+        assert_eq!(key, "Content-Type");
+        assert_eq!(value, "application/json");
+    }
+
+    #[test]
+    fn test_parse_header_with_spaces() {
+        let result = parse_header("  Authorization  :  Bearer token123  ");
+        assert!(result.is_ok());
+        let (key, value) = result.unwrap();
+        assert_eq!(key, "Authorization");
+        assert_eq!(value, "Bearer token123");
+    }
+
+    #[test]
+    fn test_parse_header_value_with_colons() {
+        // Value can contain colons (only first colon is the separator)
+        let result = parse_header("X-Custom:value:with:colons");
+        assert!(result.is_ok());
+        let (key, value) = result.unwrap();
+        assert_eq!(key, "X-Custom");
+        assert_eq!(value, "value:with:colons");
+    }
+
+    #[test]
+    fn test_parse_header_empty_value() {
+        let result = parse_header("X-Empty:");
+        assert!(result.is_ok());
+        let (key, value) = result.unwrap();
+        assert_eq!(key, "X-Empty");
+        assert_eq!(value, "");
+    }
+
+    #[test]
+    fn test_parse_header_missing_colon() {
+        let result = parse_header("InvalidHeader");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("no ':'"));
+    }
+
+    #[test]
+    fn test_parse_env_var_valid() {
+        let result = parse_env_var("API_KEY=sk-12345");
+        assert!(result.is_ok());
+        let (key, value) = result.unwrap();
+        assert_eq!(key, "API_KEY");
+        assert_eq!(value, "sk-12345");
+    }
+
+    #[test]
+    fn test_parse_env_var_value_with_equals() {
+        // Value can contain equals signs
+        let result = parse_env_var("QUERY=a=1&b=2");
+        assert!(result.is_ok());
+        let (key, value) = result.unwrap();
+        assert_eq!(key, "QUERY");
+        assert_eq!(value, "a=1&b=2");
+    }
+
+    #[test]
+    fn test_parse_env_var_empty_value() {
+        let result = parse_env_var("EMPTY=");
+        assert!(result.is_ok());
+        let (key, value) = result.unwrap();
+        assert_eq!(key, "EMPTY");
+        assert_eq!(value, "");
+    }
+
+    #[test]
+    fn test_parse_env_var_missing_equals() {
+        let result = parse_env_var("INVALID");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("no '='"));
+    }
+
+    #[test]
+    fn test_parse_env_var_vault_reference() {
+        let result = parse_env_var("TOKEN=vault:my_token");
+        assert!(result.is_ok());
+        let (key, value) = result.unwrap();
+        assert_eq!(key, "TOKEN");
+        assert_eq!(value, "vault:my_token");
+    }
 }

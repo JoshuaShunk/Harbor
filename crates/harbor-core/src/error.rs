@@ -81,3 +81,124 @@ pub enum HarborError {
 }
 
 pub type Result<T> = std::result::Result<T, HarborError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_display_config_not_found() {
+        let err = HarborError::ConfigNotFound {
+            path: PathBuf::from("/home/user/.harbor/config.toml"),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("Config not found"));
+        assert!(msg.contains("config.toml"));
+    }
+
+    #[test]
+    fn test_error_display_server_not_found() {
+        let err = HarborError::ServerNotFound {
+            name: "my-server".to_string(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("my-server"));
+        assert!(msg.contains("not found"));
+    }
+
+    #[test]
+    fn test_error_display_server_already_exists() {
+        let err = HarborError::ServerAlreadyExists {
+            name: "existing".to_string(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("existing"));
+        assert!(msg.contains("already exists"));
+    }
+
+    #[test]
+    fn test_error_display_server_start_failed() {
+        let err = HarborError::ServerStartFailed {
+            name: "broken".to_string(),
+            reason: "process exited".to_string(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("broken"));
+        assert!(msg.contains("process exited"));
+    }
+
+    #[test]
+    fn test_error_display_connector_error() {
+        let err = HarborError::ConnectorError {
+            host: "vscode".to_string(),
+            reason: "permission denied".to_string(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("vscode"));
+        assert!(msg.contains("permission denied"));
+    }
+
+    #[test]
+    fn test_error_display_vault_error() {
+        let err = HarborError::VaultError("keychain locked".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Vault"));
+        assert!(msg.contains("keychain locked"));
+    }
+
+    #[test]
+    fn test_error_display_oauth_error() {
+        let err = HarborError::OAuthError("token expired".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("OAuth"));
+        assert!(msg.contains("token expired"));
+    }
+
+    #[test]
+    fn test_error_display_fleet_not_initialized() {
+        let err = HarborError::FleetNotInitialized;
+        let msg = format!("{}", err);
+        assert!(msg.contains("Fleet not initialized"));
+        assert!(msg.contains("harbor crew init"));
+    }
+
+    #[test]
+    fn test_error_display_tunnel_not_found() {
+        let err = HarborError::TunnelNotFound {
+            subdomain: "abc123".to_string(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("abc123"));
+    }
+
+    #[test]
+    fn test_error_display_remote_tool_denied() {
+        let err = HarborError::RemoteToolDenied {
+            tool: "dangerous_tool".to_string(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("dangerous_tool"));
+        assert!(msg.contains("not allowed"));
+    }
+
+    #[test]
+    fn test_error_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let harbor_err: HarborError = io_err.into();
+        let msg = format!("{}", harbor_err);
+        assert!(msg.contains("IO error"));
+    }
+
+    #[test]
+    fn test_result_type_ok() {
+        let result: Result<i32> = Ok(42);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 42);
+    }
+
+    #[test]
+    fn test_result_type_err() {
+        let result: Result<i32> = Err(HarborError::ConfigParse("bad toml".to_string()));
+        assert!(result.is_err());
+    }
+}

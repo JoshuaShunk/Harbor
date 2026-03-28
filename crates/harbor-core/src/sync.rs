@@ -68,3 +68,51 @@ fn build_proxy_entry(host_name: &str, gateway_port: u16) -> BTreeMap<String, Hos
     );
     entries
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_proxy_entry_default_port() {
+        let entries = build_proxy_entry("claude", 3100);
+        assert_eq!(entries.len(), 1);
+
+        let entry = entries.get("harbor-proxy").unwrap();
+        assert_eq!(entry.command, "harbor");
+        assert_eq!(entry.args, vec!["relay", "--host", "claude"]);
+        assert!(entry.env.is_empty());
+    }
+
+    #[test]
+    fn test_build_proxy_entry_custom_port() {
+        let entries = build_proxy_entry("vscode", 4200);
+        let entry = entries.get("harbor-proxy").unwrap();
+
+        assert_eq!(
+            entry.args,
+            vec!["relay", "--host", "vscode", "--port", "4200"]
+        );
+    }
+
+    #[test]
+    fn test_build_proxy_entry_different_hosts() {
+        for host in &["claude", "codex", "vscode", "cursor"] {
+            let entries = build_proxy_entry(host, 3100);
+            let entry = entries.get("harbor-proxy").unwrap();
+            assert_eq!(entry.args[2], *host);
+        }
+    }
+
+    #[test]
+    fn test_sync_host_result_fields() {
+        let result = SyncHostResult {
+            host_name: "claude".to_string(),
+            display_name: "Claude Code".to_string(),
+            server_count: 5,
+        };
+        assert_eq!(result.host_name, "claude");
+        assert_eq!(result.display_name, "Claude Code");
+        assert_eq!(result.server_count, 5);
+    }
+}

@@ -408,3 +408,148 @@ pub fn has_auth(server: &NativeServer) -> bool {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_catalog_not_empty() {
+        let servers = catalog();
+        assert!(!servers.is_empty());
+        assert!(servers.len() >= 10); // We have many native servers
+    }
+
+    #[test]
+    fn test_all_ids_match_catalog() {
+        let ids = all_ids();
+        let catalog_ids: Vec<&str> = catalog().iter().map(|s| s.id).collect();
+
+        for id in &ids {
+            assert!(
+                catalog_ids.contains(id),
+                "ID '{}' in all_ids() not found in catalog",
+                id
+            );
+        }
+    }
+
+    #[test]
+    fn test_lookup_existing_server() {
+        let server = lookup("github");
+        assert!(server.is_some());
+        let server = server.unwrap();
+        assert_eq!(server.id, "github");
+        assert_eq!(server.display_name, "GitHub");
+    }
+
+    #[test]
+    fn test_lookup_nonexistent_server() {
+        let server = lookup("nonexistent-server-xyz");
+        assert!(server.is_none());
+    }
+
+    #[test]
+    fn test_native_server_is_remote() {
+        // GitHub is remote (has URL)
+        let github = lookup("github").unwrap();
+        assert!(github.is_remote());
+
+        // Filesystem is not remote (uses command)
+        let filesystem = lookup("filesystem").unwrap();
+        assert!(!filesystem.is_remote());
+    }
+
+    #[test]
+    fn test_build_headers_for_remote_oauth_server() {
+        let slack = lookup("slack").unwrap();
+        let headers = build_headers(&slack);
+
+        assert!(headers.contains_key("Authorization"));
+        let auth = headers.get("Authorization").unwrap();
+        assert!(auth.starts_with("Bearer vault:oauth:"));
+    }
+
+    #[test]
+    fn test_build_headers_for_remote_manual_token() {
+        let github = lookup("github").unwrap();
+        let headers = build_headers(&github);
+
+        assert!(headers.contains_key("Authorization"));
+        let auth = headers.get("Authorization").unwrap();
+        assert!(auth.contains("vault:"));
+    }
+
+    #[test]
+    fn test_build_headers_for_local_server() {
+        let filesystem = lookup("filesystem").unwrap();
+        let headers = build_headers(&filesystem);
+
+        // Local servers don't need Authorization headers
+        assert!(!headers.contains_key("Authorization"));
+    }
+
+    #[test]
+    fn test_build_env_for_local_server_no_auth() {
+        let filesystem = lookup("filesystem").unwrap();
+        let env = build_env(&filesystem).unwrap();
+
+        // Filesystem has no auth, so env should be empty
+        assert!(env.is_empty());
+    }
+
+    #[test]
+    fn test_auth_kind_none_always_satisfied() {
+        let filesystem = lookup("filesystem").unwrap();
+        // AuthKind::None should return true
+        match &filesystem.auth {
+            AuthKind::None => assert!(true),
+            _ => panic!("Expected AuthKind::None for filesystem"),
+        }
+    }
+
+    #[test]
+    fn test_extra_args_filesystem_directories() {
+        let filesystem = lookup("filesystem").unwrap();
+        match &filesystem.extra_args {
+            ExtraArgs::Directories { label } => {
+                assert!(!label.is_empty());
+            }
+            _ => panic!("Expected ExtraArgs::Directories for filesystem"),
+        }
+    }
+
+    #[test]
+    fn test_extra_args_google_workspace_text_input() {
+        let gws = lookup("google-workspace").unwrap();
+        match &gws.extra_args {
+            ExtraArgs::TextInput { label, placeholder } => {
+                assert!(!label.is_empty());
+                assert!(!placeholder.is_empty());
+            }
+            _ => panic!("Expected ExtraArgs::TextInput for google-workspace"),
+        }
+    }
+
+    #[test]
+    fn test_all_servers_have_required_fields() {
+        for server in catalog() {
+            assert!(!server.id.is_empty(), "Server ID should not be empty");
+            assert!(
+                !server.display_name.is_empty(),
+                "Display name should not be empty"
+            );
+            assert!(
+                !server.description.is_empty(),
+                "Description should not be empty"
+            );
+
+            // Either command or URL must be set
+            assert!(
+                server.command.is_some() || server.url.is_some(),
+                "Server '{}' must have either command or URL",
+                server.id
+            );
+        }
+    }
+}

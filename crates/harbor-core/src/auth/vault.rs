@@ -172,3 +172,76 @@ impl Vault {
         entry.delete_credential().ok()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_plain_value_unchanged() {
+        let result = Vault::resolve("plain_value").unwrap();
+        assert_eq!(result, "plain_value");
+    }
+
+    #[test]
+    fn test_resolve_empty_string() {
+        let result = Vault::resolve("").unwrap();
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_resolve_env_plain_values_unchanged() {
+        let mut env = BTreeMap::new();
+        env.insert("KEY1".to_string(), "value1".to_string());
+        env.insert("KEY2".to_string(), "value2".to_string());
+
+        let resolved = Vault::resolve_env(&env);
+
+        assert_eq!(resolved.get("KEY1").unwrap(), "value1");
+        assert_eq!(resolved.get("KEY2").unwrap(), "value2");
+    }
+
+    #[test]
+    fn test_resolve_env_empty_map() {
+        let env: BTreeMap<String, String> = BTreeMap::new();
+        let resolved = Vault::resolve_env(&env);
+        assert!(resolved.is_empty());
+    }
+
+    #[test]
+    fn test_resolve_env_preserves_keys() {
+        let mut env = BTreeMap::new();
+        env.insert("API_KEY".to_string(), "sk-12345".to_string());
+        env.insert("DEBUG".to_string(), "true".to_string());
+
+        let resolved = Vault::resolve_env(&env);
+
+        assert!(resolved.contains_key("API_KEY"));
+        assert!(resolved.contains_key("DEBUG"));
+        assert_eq!(resolved.len(), 2);
+    }
+
+    #[test]
+    fn test_resolve_with_env_fallback() {
+        // Set an env var and test that resolve falls back to it
+        std::env::set_var("HARBOR_TEST_VAR_12345", "test_value");
+        let result = Vault::resolve("vault:HARBOR_TEST_VAR_12345");
+        // This will either get from vault or fall back to env
+        assert!(result.is_ok());
+        std::env::remove_var("HARBOR_TEST_VAR_12345");
+    }
+
+    #[test]
+    fn test_resolve_env_with_mixed_values() {
+        let mut env = BTreeMap::new();
+        env.insert("PLAIN".to_string(), "plain_value".to_string());
+        env.insert("URL".to_string(), "https://api.example.com".to_string());
+        env.insert("NUMBER".to_string(), "42".to_string());
+
+        let resolved = Vault::resolve_env(&env);
+
+        assert_eq!(resolved.get("PLAIN").unwrap(), "plain_value");
+        assert_eq!(resolved.get("URL").unwrap(), "https://api.example.com");
+        assert_eq!(resolved.get("NUMBER").unwrap(), "42");
+    }
+}

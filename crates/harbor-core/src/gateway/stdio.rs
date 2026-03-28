@@ -352,3 +352,143 @@ impl StdioBridge {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_json_rpc_request_serialization() {
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: "test/method".to_string(),
+            params: Some(serde_json::json!({"key": "value"})),
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("\"jsonrpc\":\"2.0\""));
+        assert!(json.contains("\"method\":\"test/method\""));
+        assert!(json.contains("\"id\":1"));
+    }
+
+    #[test]
+    fn test_json_rpc_request_without_params() {
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!("abc")),
+            method: "simple/method".to_string(),
+            params: None,
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(!json.contains("params"));
+    }
+
+    #[test]
+    fn test_json_rpc_request_notification() {
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: None,
+            method: "notifications/initialized".to_string(),
+            params: None,
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(!json.contains("\"id\""));
+    }
+
+    #[test]
+    fn test_json_rpc_response_deserialization() {
+        let json = r#"{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}"#;
+        let response: JsonRpcResponse = serde_json::from_str(json).unwrap();
+
+        assert_eq!(response.jsonrpc, "2.0");
+        assert_eq!(response.id, Some(serde_json::json!(1)));
+        assert!(response.result.is_some());
+        assert!(response.error.is_none());
+    }
+
+    #[test]
+    fn test_json_rpc_response_error() {
+        let response = JsonRpcResponse::error(
+            Some(serde_json::json!(42)),
+            -32600,
+            "Invalid request".to_string(),
+        );
+
+        assert_eq!(response.jsonrpc, "2.0");
+        assert_eq!(response.id, Some(serde_json::json!(42)));
+        assert!(response.result.is_none());
+        assert!(response.error.is_some());
+
+        let error = response.error.unwrap();
+        assert_eq!(error.code, -32600);
+        assert_eq!(error.message, "Invalid request");
+    }
+
+    #[test]
+    fn test_json_rpc_response_error_serialization() {
+        let response = JsonRpcResponse::error(Some(serde_json::json!(1)), -32603, "Test".to_string());
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"error\""));
+        assert!(json.contains("-32603"));
+        assert!(!json.contains("\"result\""));
+    }
+
+    #[test]
+    fn test_request_id_from_value() {
+        let val = serde_json::json!(123);
+        let id = RequestId::from(&val);
+        assert_eq!(id.0, "123");
+
+        let val_str = serde_json::json!("abc-def");
+        let id_str = RequestId::from(&val_str);
+        assert_eq!(id_str.0, "\"abc-def\"");
+    }
+
+    #[test]
+    fn test_request_id_equality() {
+        let val1 = serde_json::json!(42);
+        let val2 = serde_json::json!(42);
+        let val3 = serde_json::json!(43);
+
+        let id1 = RequestId::from(&val1);
+        let id2 = RequestId::from(&val2);
+        let id3 = RequestId::from(&val3);
+
+        assert_eq!(id1, id2);
+        assert_ne!(id1, id3);
+    }
+
+    #[test]
+    fn test_json_rpc_error_with_data() {
+        let error = JsonRpcError {
+            code: -32000,
+            message: "Server error".to_string(),
+            data: Some(serde_json::json!({"details": "more info"})),
+        };
+
+        let json = serde_json::to_string(&error).unwrap();
+        assert!(json.contains("\"data\""));
+        assert!(json.contains("details"));
+    }
+
+    #[test]
+    fn test_json_rpc_response_roundtrip() {
+        let original = JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!("test-id")),
+            result: Some(serde_json::json!({"key": "value", "num": 42})),
+            error: None,
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let parsed: JsonRpcResponse = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.jsonrpc, original.jsonrpc);
+        assert_eq!(parsed.id, original.id);
+        assert_eq!(parsed.result, original.result);
+    }
+}

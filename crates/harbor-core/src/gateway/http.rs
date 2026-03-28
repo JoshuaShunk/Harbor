@@ -362,3 +362,88 @@ impl HttpBridge {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_http_bridge_new() {
+        let headers = BTreeMap::new();
+        let bridge = HttpBridge::new("test-server", "https://api.example.com/mcp", headers, None);
+
+        assert!(bridge.is_ok());
+        let bridge = bridge.unwrap();
+        assert_eq!(bridge.name, "test-server");
+    }
+
+    #[test]
+    fn test_http_bridge_with_headers() {
+        let mut headers = BTreeMap::new();
+        headers.insert("X-Custom".to_string(), "value".to_string());
+        headers.insert("Authorization".to_string(), "Bearer token".to_string());
+
+        let bridge =
+            HttpBridge::new("test-with-headers", "https://api.example.com", headers, None);
+
+        assert!(bridge.is_ok());
+    }
+
+    #[test]
+    fn test_http_bridge_with_oauth_provider() {
+        let headers = BTreeMap::new();
+        let bridge = HttpBridge::new(
+            "oauth-server",
+            "https://mcp.example.com",
+            headers,
+            Some("example-provider".to_string()),
+        );
+
+        assert!(bridge.is_ok());
+        let bridge = bridge.unwrap();
+        assert_eq!(bridge.oauth_provider, Some("example-provider".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_http_bridge_shutdown() {
+        let headers = BTreeMap::new();
+        let bridge =
+            HttpBridge::new("shutdown-test", "https://api.example.com", headers, None).unwrap();
+
+        // Shutdown should succeed
+        let result = bridge.shutdown().await;
+        assert!(result.is_ok());
+
+        // State should be cleared
+        assert!(bridge.session_id.lock().await.is_none());
+        assert!(!*bridge.initialized.lock().await);
+    }
+
+    #[tokio::test]
+    async fn test_http_bridge_double_shutdown() {
+        let headers = BTreeMap::new();
+        let bridge =
+            HttpBridge::new("double-shutdown", "https://api.example.com", headers, None).unwrap();
+
+        // Double shutdown should be fine
+        bridge.shutdown().await.unwrap();
+        bridge.shutdown().await.unwrap();
+    }
+
+    #[test]
+    fn test_json_rpc_response_error_helper() {
+        let response = JsonRpcResponse::error(
+            Some(serde_json::json!("req-123")),
+            -32603,
+            "Internal error".to_string(),
+        );
+
+        assert_eq!(response.jsonrpc, "2.0");
+        assert!(response.error.is_some());
+        assert!(response.result.is_none());
+
+        let error = response.error.unwrap();
+        assert_eq!(error.code, -32603);
+        assert_eq!(error.message, "Internal error");
+    }
+}
