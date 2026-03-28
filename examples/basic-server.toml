@@ -1,0 +1,12 @@
+# Basic Server Configuration
+#
+# This is a minimal Harbor server config. Dock it with:
+#   harbor dock --name memory --command npx --args @modelcontextprotocol/server-memory
+#
+# Or add directly to ~/.harbor/config.toml under [servers.memory]
+
+[servers.memory]
+command = "npx"
+args = ["@modelcontextprotocol/server-memory"]
+enabled = true
+auto_start = false

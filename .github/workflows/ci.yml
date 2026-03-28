@@ -33,14 +33,41 @@ jobs:
       - run: cargo clippy --workspace -- -D warnings
 
   test:
-    name: Test
-    runs-on: macos-latest
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
-      - run: mkdir -p crates/harbor-desktop/binaries && touch crates/harbor-desktop/binaries/harbor
+      - name: Create binaries placeholder
+        shell: bash
+        run: mkdir -p crates/harbor-desktop/binaries && touch crates/harbor-desktop/binaries/harbor
       - run: cargo test --workspace
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+      - name: Create binaries placeholder
+        run: mkdir -p crates/harbor-desktop/binaries && touch crates/harbor-desktop/binaries/harbor
+      - name: Run coverage
+        run: cargo tarpaulin --workspace --out xml --skip-clean
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: cobertura.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   frontend:
     name: Frontend type-check

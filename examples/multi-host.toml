@@ -1,0 +1,22 @@
+# Multi-Host Server Configuration
+#
+# This example shows a server configured to sync to multiple hosts.
+# Use `harbor port link <host>` to enable hosts first, then dock this server.
+
+[servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+enabled = true
+auto_start = false
+
+# Environment variables with vault references (secrets stored in OS keychain)
+[servers.github.env]
+GITHUB_PERSONAL_ACCESS_TOKEN = "vault:GITHUB_TOKEN"
+
+# Hosts this server syncs to (optional, defaults to all linked hosts)
+# Valid hosts: claude, codex, vscode, cursor, cline, roo_code, windsurf
+[servers.github.hosts]
+claude = true
+codex = true
+vscode = true
+cursor = true

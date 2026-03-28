@@ -1,0 +1,38 @@
+# Team Fleet Configuration (harbor-fleet.toml)
+#
+# This file lives in your team's fleet repo (~/.harbor/fleet/harbor-fleet.toml).
+# Share MCP servers across your team via git. Secrets stay local — only
+# vault references are committed.
+#
+# Setup:
+#   1. One person: harbor crew init --git git@github.com:your-org/fleet.git
+#   2. Push servers: harbor crew push github linear
+#   3. Teammates: harbor crew join git@github.com:your-org/fleet.git
+#   4. Provision secrets: harbor crew provision
+#
+# Daily workflow:
+#   harbor crew pull      # fetch upstream changes
+#   harbor crew status    # check for drift
+#   harbor crew push      # share local changes
+
+[servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+
+[servers.github.env]
+GITHUB_PERSONAL_ACCESS_TOKEN = "vault:GITHUB_TOKEN"
+
+[servers.linear]
+command = "npx"
+args = ["-y", "@harbormcp/server-linear"]
+
+[servers.linear.env]
+LINEAR_API_KEY = "vault:LINEAR_API_KEY"
+
+[servers.slack]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-slack"]
+
+[servers.slack.env]
+SLACK_BOT_TOKEN = "vault:SLACK_BOT_TOKEN"
+SLACK_TEAM_ID = "vault:SLACK_TEAM_ID"

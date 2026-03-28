@@ -18,5 +18,18 @@ You should receive a response within 48 hours. We will work with you to understa
 
 | Version | Supported |
 |---------|-----------|
-| 0.2.x   | Yes       |
+| 0.5.x   | Yes       |
+| 0.3.x   | Yes       |
+| 0.2.x   | No        |
 | < 0.2   | No        |
+
+## Security Considerations
+
+### Vault / Keychain
+
+Harbor stores secrets in your operating system's keychain (macOS Keychain, Windows Credential Manager, or Linux Secret Service). Keep in mind:
+
+- **Vault references** (`vault:SECRET_NAME`) are resolved at runtime by the gateway — secrets are never written to plain-text config files
+- **Fleet sync** only commits vault references, not actual secrets — teammates must run `harbor crew provision` to stow their own credentials
+- **Host configs** receive resolved environment variables only when the gateway bridges a server connection
+- **Keychain access** may prompt for permission when Harbor first accesses a secret after a binary update or system restart

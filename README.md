@@ -17,6 +17,7 @@
 <p align="center">
   <a href="https://github.com/JoshuaShunk/Harbor/releases/latest"><img src="https://img.shields.io/github/v/release/JoshuaShunk/Harbor?style=flat-square&color=blue" alt="Latest Release"></a>
   <a href="https://github.com/JoshuaShunk/Harbor/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/JoshuaShunk/Harbor/ci.yml?style=flat-square&label=build" alt="Build Status"></a>
+  <a href="https://codecov.io/gh/JoshuaShunk/Harbor"><img src="https://img.shields.io/codecov/c/github/JoshuaShunk/Harbor?style=flat-square" alt="Coverage"></a>
   <a href="https://github.com/JoshuaShunk/Harbor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/JoshuaShunk/Harbor?style=flat-square" alt="License"></a>
   <a href="https://github.com/JoshuaShunk/Harbor/releases"><img src="https://img.shields.io/github/downloads/JoshuaShunk/Harbor/total?style=flat-square&color=green" alt="Downloads"></a>
   <a href="https://docs.harbormcp.ai"><img src="https://img.shields.io/badge/docs-harbormcp.ai-blue?style=flat-square" alt="Docs"></a>
@@ -199,6 +200,14 @@ cd crates/harbor-desktop && cargo tauri build
 ```sh
 cargo build --release -p harbor-cli
 ```
+
+## Examples
+
+See the [`examples/`](examples/) directory for sample configurations:
+
+- [`basic-server.toml`](examples/basic-server.toml) — Minimal server config
+- [`multi-host.toml`](examples/multi-host.toml) — Server synced to multiple hosts
+- [`fleet-team.toml`](examples/fleet-team.toml) — Team fleet setup
 
 ## Contributing
 

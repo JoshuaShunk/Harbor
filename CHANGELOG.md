@@ -5,6 +5,8 @@ All notable changes to Harbor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **Note:** Versions 0.4.x were internal releases not published to GitHub. The jump from 0.3.x to 0.5.x is intentional.
+
 ## [Unreleased]
 
 ## [0.5.6] - 2026-03-11
@@ -112,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Unreleased]: https://github.com/JoshuaShunk/Harbor/compare/v0.5.6...HEAD
 [0.5.6]: https://github.com/JoshuaShunk/Harbor/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/JoshuaShunk/Harbor/compare/v0.3.3...v0.5.5
+[0.3.3]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.4...v0.3.3
 [0.2.4]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/JoshuaShunk/Harbor/compare/v0.2.1...v0.2.2
