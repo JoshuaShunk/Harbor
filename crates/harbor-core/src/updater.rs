@@ -381,4 +381,123 @@ mod tests {
         let target = current_target();
         assert_ne!(target, "unsupported");
     }
+
+    #[test]
+    fn test_version_newer_patch() {
+        assert!(version_newer("1.2.4", "1.2.3"));
+        assert!(!version_newer("1.2.3", "1.2.4"));
+    }
+
+    #[test]
+    fn test_version_newer_minor() {
+        assert!(version_newer("1.3.0", "1.2.9"));
+        assert!(!version_newer("1.2.9", "1.3.0"));
+    }
+
+    #[test]
+    fn test_version_newer_major() {
+        assert!(version_newer("2.0.0", "1.9.9"));
+        assert!(!version_newer("1.9.9", "2.0.0"));
+    }
+
+    #[test]
+    fn test_version_newer_same() {
+        assert!(!version_newer("1.0.0", "1.0.0"));
+        assert!(!version_newer("0.5.0", "0.5.0"));
+    }
+
+    #[test]
+    fn test_version_newer_partial_versions() {
+        // Handles versions with fewer than 3 parts
+        assert!(version_newer("1.0", "0.9"));
+        assert!(version_newer("2", "1"));
+    }
+
+    #[test]
+    fn test_update_check_struct() {
+        let check = UpdateCheck {
+            current_version: "0.5.0".to_string(),
+            latest_version: "0.5.1".to_string(),
+            update_available: true,
+            download_url: Some("https://example.com/harbor.tar.gz".to_string()),
+            checksum_url: Some("https://example.com/harbor.tar.gz.sha256".to_string()),
+        };
+
+        assert!(check.update_available);
+        assert!(check.download_url.is_some());
+        assert!(check.checksum_url.is_some());
+    }
+
+    #[test]
+    fn test_update_check_clone() {
+        let check = UpdateCheck {
+            current_version: "0.5.0".to_string(),
+            latest_version: "0.5.1".to_string(),
+            update_available: true,
+            download_url: None,
+            checksum_url: None,
+        };
+
+        let cloned = check.clone();
+        assert_eq!(cloned.current_version, check.current_version);
+        assert_eq!(cloned.latest_version, check.latest_version);
+    }
+
+    #[test]
+    fn test_update_cache_serialization() {
+        let cache = UpdateCache {
+            checked_at: 1699999999,
+            latest_version: "0.6.0".to_string(),
+            update_available: true,
+        };
+
+        let json = serde_json::to_string(&cache).unwrap();
+        assert!(json.contains("\"checked_at\":1699999999"));
+        assert!(json.contains("\"latest_version\":\"0.6.0\""));
+        assert!(json.contains("\"update_available\":true"));
+
+        let deserialized: UpdateCache = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.checked_at, 1699999999);
+        assert_eq!(deserialized.latest_version, "0.6.0");
+        assert!(deserialized.update_available);
+    }
+
+    #[test]
+    fn test_is_managed_install_in_test_env() {
+        // In test environment, shouldn't be detected as managed
+        // unless running in CI
+        let result = is_managed_install();
+        // CI might return Some("CI"), otherwise None
+        if std::env::var_os("CI").is_some() {
+            assert_eq!(result, Some("CI"));
+        }
+        // Can't make strong assertions about non-CI environments
+    }
+
+    #[test]
+    fn test_current_target_known_platforms() {
+        let target = current_target();
+        let known_targets = [
+            "x86_64-apple-darwin",
+            "aarch64-apple-darwin",
+            "x86_64-unknown-linux-gnu",
+            "aarch64-unknown-linux-gnu",
+            "x86_64-pc-windows-msvc",
+            "aarch64-pc-windows-msvc",
+        ];
+        assert!(
+            known_targets.contains(&target) || target == "unsupported",
+            "Unexpected target: {}",
+            target
+        );
+    }
+
+    #[test]
+    fn test_version_comparison_edge_cases() {
+        // Very large version numbers
+        assert!(version_newer("100.0.0", "99.99.99"));
+
+        // Leading zeros shouldn't matter (they're parsed as integers)
+        assert!(!version_newer("1.01.0", "1.1.0")); // 01 == 1
+    }
 }

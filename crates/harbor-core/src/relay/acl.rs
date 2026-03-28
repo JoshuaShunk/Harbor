@@ -95,4 +95,87 @@ mod tests {
         // Unknown methods rejected
         assert!(!acl.is_method_allowed("resources/list", None));
     }
+
+    #[test]
+    fn test_default_is_allow_all() {
+        let acl = AclRules::default();
+        assert!(acl.allowed_tools.is_none());
+        assert!(acl.is_tool_allowed("any_tool"));
+    }
+
+    #[test]
+    fn test_allow_only_empty_list() {
+        let acl = AclRules::allow_only(vec![]);
+        assert!(!acl.is_tool_allowed("any_tool"));
+    }
+
+    #[test]
+    fn test_allow_only_single_tool() {
+        let acl = AclRules::allow_only(vec!["only_this".to_string()]);
+        assert!(acl.is_tool_allowed("only_this"));
+        assert!(!acl.is_tool_allowed("other"));
+    }
+
+    #[test]
+    fn test_initialize_method_always_allowed() {
+        let acl = AclRules::allow_only(vec![]); // empty allowlist
+        assert!(acl.is_method_allowed("initialize", None));
+    }
+
+    #[test]
+    fn test_notifications_initialized_always_allowed() {
+        let acl = AclRules::allow_only(vec![]);
+        assert!(acl.is_method_allowed("notifications/initialized", None));
+    }
+
+    #[test]
+    fn test_tools_list_always_allowed() {
+        let acl = AclRules::allow_only(vec![]);
+        assert!(acl.is_method_allowed("tools/list", None));
+    }
+
+    #[test]
+    fn test_acl_rules_clone() {
+        let acl = AclRules::allow_only(vec!["tool1".to_string(), "tool2".to_string()]);
+        let cloned = acl.clone();
+        assert_eq!(cloned.allowed_tools, acl.allowed_tools);
+    }
+
+    #[test]
+    fn test_acl_rules_serialization() {
+        let acl = AclRules::allow_only(vec!["get_data".to_string()]);
+        let json = serde_json::to_string(&acl).unwrap();
+        assert!(json.contains("get_data"));
+
+        let deserialized: AclRules = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.is_tool_allowed("get_data"));
+        assert!(!deserialized.is_tool_allowed("delete_data"));
+    }
+
+    #[test]
+    fn test_allow_all_serialization() {
+        let acl = AclRules::allow_all();
+        let json = serde_json::to_string(&acl).unwrap();
+        // allowed_tools should be null
+        assert!(json.contains("null"));
+
+        let deserialized: AclRules = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.allowed_tools.is_none());
+    }
+
+    #[test]
+    fn test_tool_name_case_sensitive() {
+        let acl = AclRules::allow_only(vec!["get_issues".to_string()]);
+        assert!(acl.is_tool_allowed("get_issues"));
+        assert!(!acl.is_tool_allowed("GET_ISSUES"));
+        assert!(!acl.is_tool_allowed("Get_Issues"));
+    }
+
+    #[test]
+    fn test_method_with_tool_allowed() {
+        let acl = AclRules::allow_only(vec!["get".to_string(), "search".to_string()]);
+        assert!(acl.is_method_allowed("tools/call", Some("get")));
+        assert!(acl.is_method_allowed("tools/call", Some("search")));
+        assert!(!acl.is_method_allowed("tools/call", Some("delete")));
+    }
 }

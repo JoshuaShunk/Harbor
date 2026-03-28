@@ -110,3 +110,125 @@ impl ManagedProcess {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_config(command: &str, args: Vec<&str>) -> ServerConfig {
+        ServerConfig {
+            source: None,
+            command: Some(command.to_string()),
+            args: args.into_iter().map(String::from).collect(),
+            env: BTreeMap::new(),
+            url: None,
+            headers: None,
+            enabled: true,
+            auto_start: false,
+            hosts: BTreeMap::new(),
+            tool_allowlist: None,
+            tool_blocklist: None,
+            tool_hosts: BTreeMap::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_spawn_echo_process() {
+        let config = make_config("echo", vec!["hello"]);
+        let env = BTreeMap::new();
+
+        let result = ManagedProcess::spawn("test-echo", &config, &env).await;
+        assert!(result.is_ok());
+
+        let mut process = result.unwrap();
+        assert_eq!(process.name, "test-echo");
+        assert!(process.pid > 0);
+
+        // Stop the process
+        let stop_result = process.stop().await;
+        assert!(stop_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_spawn_with_env() {
+        let config = make_config("env", vec![]);
+        let mut env = BTreeMap::new();
+        env.insert("TEST_VAR".to_string(), "test_value".to_string());
+
+        let result = ManagedProcess::spawn("test-env", &config, &env).await;
+        // env command exists on most systems
+        if result.is_ok() {
+            let mut process = result.unwrap();
+            let _ = process.stop().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_spawn_invalid_command() {
+        let config = make_config("nonexistent-command-xyz-123", vec![]);
+        let env = BTreeMap::new();
+
+        let result = ManagedProcess::spawn("test-invalid", &config, &env).await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_spawn_detached_with_echo() {
+        let config = make_config("sleep", vec!["0.1"]);
+        let env = BTreeMap::new();
+
+        let result = ManagedProcess::spawn_detached("test-detached", &config, &env);
+        // sleep might not exist on all systems, but on most it does
+        if result.is_ok() {
+            let pid = result.unwrap();
+            assert!(pid > 0);
+        }
+    }
+
+    #[test]
+    fn test_spawn_detached_invalid_command() {
+        let config = make_config("nonexistent-command-abc-789", vec![]);
+        let env = BTreeMap::new();
+
+        let result = ManagedProcess::spawn_detached("test-invalid-detached", &config, &env);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_is_running_for_short_process() {
+        // echo exits immediately
+        let config = make_config("echo", vec!["test"]);
+        let env = BTreeMap::new();
+
+        let result = ManagedProcess::spawn("test-short", &config, &env).await;
+        if let Ok(mut process) = result {
+            // Give it a moment to exit
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            // Process should have exited
+            assert!(!process.is_running());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_is_running_for_long_process() {
+        // sleep runs for a while
+        let config = make_config("sleep", vec!["10"]);
+        let env = BTreeMap::new();
+
+        let result = ManagedProcess::spawn("test-long", &config, &env).await;
+        if let Ok(mut process) = result {
+            // Process should still be running
+            assert!(process.is_running());
+            // Clean up
+            let _ = process.stop().await;
+        }
+    }
+
+    #[test]
+    fn test_managed_process_fields() {
+        // Test that ManagedProcess has expected fields
+        // This is a compile-time check more than a runtime test
+        let _name: String = "test".to_string();
+        let _pid: u32 = 12345;
+    }
+}

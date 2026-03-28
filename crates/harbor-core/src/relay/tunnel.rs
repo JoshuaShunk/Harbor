@@ -127,4 +127,135 @@ mod tests {
         assert!(!state.is_expired(90));
         // Can't easily test expiry without sleeping, but the logic is trivial
     }
+
+    #[test]
+    fn test_tunnel_state_heartbeat() {
+        let mut state = TunnelState {
+            tunnel_id: "t1".to_string(),
+            subdomain: "test".to_string(),
+            created_at: Instant::now(),
+            last_heartbeat: Instant::now(),
+            acl: AclRules::allow_all(),
+            bearer_token: "tok".to_string(),
+        };
+
+        let old_heartbeat = state.last_heartbeat;
+        // Small delay to ensure time difference
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        state.heartbeat();
+        assert!(state.last_heartbeat >= old_heartbeat);
+    }
+
+    #[test]
+    fn test_tunnel_config_default() {
+        let config = TunnelConfig::default();
+        assert_eq!(config.heartbeat_timeout_secs, 90);
+        assert_eq!(config.heartbeat_interval_secs, 30);
+        assert_eq!(config.max_tunnels_per_token, 10);
+        assert!(config.domain.is_none());
+    }
+
+    #[test]
+    fn test_tunnel_config_serialization() {
+        let config = TunnelConfig {
+            heartbeat_timeout_secs: 120,
+            heartbeat_interval_secs: 45,
+            max_tunnels_per_token: 5,
+            domain: Some("example.com".to_string()),
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("120"));
+        assert!(json.contains("45"));
+        assert!(json.contains("example.com"));
+
+        let deserialized: TunnelConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.heartbeat_timeout_secs, 120);
+        assert_eq!(deserialized.domain, Some("example.com".to_string()));
+    }
+
+    #[test]
+    fn test_tunnel_config_clone() {
+        let config = TunnelConfig {
+            heartbeat_timeout_secs: 60,
+            heartbeat_interval_secs: 20,
+            max_tunnels_per_token: 3,
+            domain: Some("test.com".to_string()),
+        };
+
+        let cloned = config.clone();
+        assert_eq!(cloned.heartbeat_timeout_secs, config.heartbeat_timeout_secs);
+        assert_eq!(cloned.domain, config.domain);
+    }
+
+    #[test]
+    fn test_generate_subdomain_alphanumeric() {
+        for _ in 0..20 {
+            let sub = generate_subdomain();
+            assert!(sub.chars().all(|c| c.is_ascii_alphanumeric()));
+            assert!(sub.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
+        }
+    }
+
+    #[test]
+    fn test_generate_subdomain_length() {
+        for _ in 0..20 {
+            let sub = generate_subdomain();
+            assert_eq!(sub.len(), 6);
+        }
+    }
+
+    #[test]
+    fn test_subdomain_uniqueness_many() {
+        let subdomains: std::collections::HashSet<String> =
+            (0..100).map(|_| generate_subdomain()).collect();
+        // All should be unique (collision is astronomically unlikely)
+        assert_eq!(subdomains.len(), 100);
+    }
+
+    #[test]
+    fn test_tunnel_state_fields() {
+        let state = TunnelState {
+            tunnel_id: "tunnel-abc-123".to_string(),
+            subdomain: "myapp".to_string(),
+            created_at: Instant::now(),
+            last_heartbeat: Instant::now(),
+            acl: AclRules::allow_only(vec!["get_data".to_string()]),
+            bearer_token: "hbr_test_token".to_string(),
+        };
+
+        assert_eq!(state.tunnel_id, "tunnel-abc-123");
+        assert_eq!(state.subdomain, "myapp");
+        assert!(state.acl.is_tool_allowed("get_data"));
+        assert!(!state.acl.is_tool_allowed("delete_data"));
+    }
+
+    #[test]
+    fn test_tunnel_not_expired_immediately() {
+        let state = TunnelState {
+            tunnel_id: "t1".to_string(),
+            subdomain: "test".to_string(),
+            created_at: Instant::now(),
+            last_heartbeat: Instant::now(),
+            acl: AclRules::allow_all(),
+            bearer_token: "tok".to_string(),
+        };
+
+        // Should not be expired with any reasonable timeout
+        assert!(!state.is_expired(1));
+        assert!(!state.is_expired(10));
+        assert!(!state.is_expired(90));
+        assert!(!state.is_expired(3600));
+    }
+
+    #[test]
+    fn test_tunnel_config_with_domain() {
+        let config = TunnelConfig {
+            domain: Some("harbormcp.ai".to_string()),
+            ..Default::default()
+        };
+
+        assert_eq!(config.domain, Some("harbormcp.ai".to_string()));
+        assert_eq!(config.heartbeat_timeout_secs, 90); // default
+    }
 }

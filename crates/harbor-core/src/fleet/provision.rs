@@ -241,4 +241,108 @@ mod tests {
         let report = find_missing_keys(&FleetConfig::default());
         assert!(report.is_complete());
     }
+
+    #[test]
+    fn extracts_vault_key_with_whitespace_after() {
+        assert_eq!(
+            extract_vault_key("vault:my_key "),
+            Some("my_key".to_string())
+        );
+    }
+
+    #[test]
+    fn extracts_vault_key_multiple_spaces_before() {
+        assert_eq!(
+            extract_vault_key("Token vault:api_key"),
+            Some("api_key".to_string())
+        );
+    }
+
+    #[test]
+    fn provision_report_is_complete_when_empty() {
+        let report = ProvisionReport { missing: vec![] };
+        assert!(report.is_complete());
+    }
+
+    #[test]
+    fn provision_report_not_complete_when_missing() {
+        let report = ProvisionReport {
+            missing: vec![MissingKey {
+                key: "some_key".to_string(),
+                used_by: "server1".to_string(),
+            }],
+        };
+        assert!(!report.is_complete());
+    }
+
+    #[test]
+    fn missing_key_fields() {
+        let mk = MissingKey {
+            key: "test_key".to_string(),
+            used_by: "server1, server2".to_string(),
+        };
+        assert_eq!(mk.key, "test_key");
+        assert!(mk.used_by.contains("server1"));
+        assert!(mk.used_by.contains("server2"));
+    }
+
+    #[test]
+    fn missing_key_clone() {
+        let mk = MissingKey {
+            key: "clone_key".to_string(),
+            used_by: "server".to_string(),
+        };
+        let cloned = mk.clone();
+        assert_eq!(cloned.key, mk.key);
+        assert_eq!(cloned.used_by, mk.used_by);
+    }
+
+    #[test]
+    fn extract_vault_key_only_vault_prefix() {
+        // "vault:" followed by nothing should return None
+        assert_eq!(extract_vault_key("vault:"), None);
+    }
+
+    #[test]
+    fn extract_vault_key_no_prefix() {
+        assert_eq!(extract_vault_key("just_a_value"), None);
+        assert_eq!(extract_vault_key(""), None);
+    }
+
+    #[test]
+    fn extract_vault_key_with_special_chars() {
+        assert_eq!(
+            extract_vault_key("vault:key-with-dashes"),
+            Some("key-with-dashes".to_string())
+        );
+        assert_eq!(
+            extract_vault_key("vault:key_with_underscores"),
+            Some("key_with_underscores".to_string())
+        );
+    }
+
+    #[test]
+    fn multiple_servers_same_key_single_report() {
+        let mut config = FleetConfig::default();
+        config.servers.insert(
+            "s1".to_string(),
+            def_with_env("K", "vault:__test_unique_multi__"),
+        );
+        config.servers.insert(
+            "s2".to_string(),
+            def_with_env("K", "vault:__test_unique_multi__"),
+        );
+        config.servers.insert(
+            "s3".to_string(),
+            def_with_env("K", "vault:__test_unique_multi__"),
+        );
+
+        let report = find_missing_keys(&config);
+        let count = report
+            .missing
+            .iter()
+            .filter(|mk| mk.key == "__test_unique_multi__")
+            .count();
+        assert_eq!(count, 1, "Same key should appear only once in report");
+    }
 }

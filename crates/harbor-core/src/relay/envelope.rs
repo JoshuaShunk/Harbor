@@ -270,4 +270,182 @@ mod tests {
     fn test_decode_too_short() {
         assert!(RelayMessage::decode(&[0, 0]).is_err());
     }
+
+    #[test]
+    fn test_decode_insufficient_envelope_data() {
+        // Claims 100 bytes of envelope but only provides 4
+        let bytes = [0, 0, 0, 100, 1, 2, 3, 4];
+        assert!(RelayMessage::decode(&bytes).is_err());
+    }
+
+    #[test]
+    fn test_direction_serialization() {
+        assert_eq!(
+            serde_json::to_string(&Direction::Request).unwrap(),
+            "\"request\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Direction::Response).unwrap(),
+            "\"response\""
+        );
+    }
+
+    #[test]
+    fn test_direction_equality() {
+        assert_eq!(Direction::Request, Direction::Request);
+        assert_eq!(Direction::Response, Direction::Response);
+        assert_ne!(Direction::Request, Direction::Response);
+    }
+
+    #[test]
+    fn test_envelope_without_optional_fields() {
+        let envelope = Envelope {
+            tunnel_id: "t1".to_string(),
+            session_id: None,
+            method: "tools/list".to_string(),
+            tool_name: None,
+            request_id: "r1".to_string(),
+            direction: Direction::Request,
+        };
+
+        let json = serde_json::to_string(&envelope).unwrap();
+        // session_id and tool_name should be omitted
+        assert!(!json.contains("session_id"));
+        assert!(!json.contains("tool_name"));
+    }
+
+    #[test]
+    fn test_relay_message_request_without_session() {
+        let msg = RelayMessage::request("t1", "tools/list", None, None, "r1", vec![1, 2, 3]);
+
+        assert_eq!(msg.envelope.tunnel_id, "t1");
+        assert!(msg.envelope.session_id.is_none());
+        assert!(msg.envelope.tool_name.is_none());
+        assert_eq!(msg.payload, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_relay_message_empty_payload() {
+        let msg = RelayMessage::request("t1", "initialize", None, None, "r1", vec![]);
+
+        let encoded = msg.encode().unwrap();
+        let decoded = RelayMessage::decode(&encoded).unwrap();
+
+        assert!(decoded.payload.is_empty());
+    }
+
+    #[test]
+    fn test_control_message_registered() {
+        let msg = ControlMessage::Registered {
+            tunnel_id: "t-123".to_string(),
+            subdomain: "josh".to_string(),
+            public_url: "https://josh.relay.example.com".to_string(),
+            bearer_token: "bearer-abc".to_string(),
+        };
+
+        let encoded = msg.encode().unwrap();
+        let decoded = ControlMessage::decode(&encoded).unwrap();
+
+        match decoded {
+            ControlMessage::Registered {
+                tunnel_id,
+                subdomain,
+                public_url,
+                bearer_token,
+            } => {
+                assert_eq!(tunnel_id, "t-123");
+                assert_eq!(subdomain, "josh");
+                assert!(public_url.contains("josh"));
+                assert_eq!(bearer_token, "bearer-abc");
+            }
+            _ => panic!("Expected Registered message"),
+        }
+    }
+
+    #[test]
+    fn test_control_message_rejected() {
+        let msg = ControlMessage::Rejected {
+            reason: "Invalid token".to_string(),
+        };
+
+        let encoded = msg.encode().unwrap();
+        let decoded = ControlMessage::decode(&encoded).unwrap();
+
+        match decoded {
+            ControlMessage::Rejected { reason } => {
+                assert_eq!(reason, "Invalid token");
+            }
+            _ => panic!("Expected Rejected message"),
+        }
+    }
+
+    #[test]
+    fn test_control_message_heartbeat() {
+        let msg = ControlMessage::Heartbeat { timestamp: 1234567890 };
+
+        let encoded = msg.encode().unwrap();
+        let decoded = ControlMessage::decode(&encoded).unwrap();
+
+        match decoded {
+            ControlMessage::Heartbeat { timestamp } => {
+                assert_eq!(timestamp, 1234567890);
+            }
+            _ => panic!("Expected Heartbeat message"),
+        }
+    }
+
+    #[test]
+    fn test_control_message_disconnect() {
+        let msg = ControlMessage::Disconnect;
+
+        let encoded = msg.encode().unwrap();
+        let decoded = ControlMessage::decode(&encoded).unwrap();
+
+        match decoded {
+            ControlMessage::Disconnect => {}
+            _ => panic!("Expected Disconnect message"),
+        }
+    }
+
+    #[test]
+    fn test_control_message_has_newline() {
+        let msg = ControlMessage::Disconnect;
+        let encoded = msg.encode().unwrap();
+        assert_eq!(*encoded.last().unwrap(), b'\n');
+    }
+
+    #[test]
+    fn test_decode_without_trailing_newline() {
+        // Should work even without trailing newline
+        let json = r#"{"type":"disconnect"}"#;
+        let decoded = ControlMessage::decode(json.as_bytes()).unwrap();
+        match decoded {
+            ControlMessage::Disconnect => {}
+            _ => panic!("Expected Disconnect"),
+        }
+    }
+
+    #[test]
+    fn test_envelope_clone() {
+        let envelope = Envelope {
+            tunnel_id: "t1".to_string(),
+            session_id: Some("s1".to_string()),
+            method: "tools/call".to_string(),
+            tool_name: Some("get_issues".to_string()),
+            request_id: "r1".to_string(),
+            direction: Direction::Request,
+        };
+
+        let cloned = envelope.clone();
+        assert_eq!(cloned.tunnel_id, envelope.tunnel_id);
+        assert_eq!(cloned.session_id, envelope.session_id);
+    }
+
+    #[test]
+    fn test_relay_message_clone() {
+        let msg = RelayMessage::request("t1", "tools/list", None, None, "r1", vec![1, 2, 3]);
+        let cloned = msg.clone();
+        assert_eq!(cloned.envelope.tunnel_id, msg.envelope.tunnel_id);
+        assert_eq!(cloned.payload, msg.payload);
+    }
 }

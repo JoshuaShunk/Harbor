@@ -115,4 +115,68 @@ mod tests {
         assert_eq!(result.display_name, "Claude Code");
         assert_eq!(result.server_count, 5);
     }
+
+    #[test]
+    fn test_build_proxy_entry_contains_harbor_proxy() {
+        let entries = build_proxy_entry("test-host", 3100);
+        assert!(entries.contains_key("harbor-proxy"));
+    }
+
+    #[test]
+    fn test_build_proxy_entry_empty_env() {
+        let entries = build_proxy_entry("claude", 3100);
+        let entry = entries.get("harbor-proxy").unwrap();
+        assert!(entry.env.is_empty());
+    }
+
+    #[test]
+    fn test_build_proxy_entry_port_threshold() {
+        // Port 3100 should not include port arg
+        let entries_3100 = build_proxy_entry("host", 3100);
+        let entry_3100 = entries_3100.get("harbor-proxy").unwrap();
+        assert!(!entry_3100.args.contains(&"--port".to_string()));
+
+        // Port 3101 should include port arg
+        let entries_3101 = build_proxy_entry("host", 3101);
+        let entry_3101 = entries_3101.get("harbor-proxy").unwrap();
+        assert!(entry_3101.args.contains(&"--port".to_string()));
+        assert!(entry_3101.args.contains(&"3101".to_string()));
+    }
+
+    #[test]
+    fn test_build_proxy_entry_relay_command() {
+        let entries = build_proxy_entry("any-host", 3100);
+        let entry = entries.get("harbor-proxy").unwrap();
+        assert!(entry.args.contains(&"relay".to_string()));
+    }
+
+    #[test]
+    fn test_build_proxy_entry_host_argument() {
+        let entries = build_proxy_entry("cursor", 3100);
+        let entry = entries.get("harbor-proxy").unwrap();
+
+        // Should have --host cursor
+        let host_idx = entry.args.iter().position(|a| a == "--host").unwrap();
+        assert_eq!(entry.args[host_idx + 1], "cursor");
+    }
+
+    #[test]
+    fn test_sync_host_result_zero_servers() {
+        let result = SyncHostResult {
+            host_name: "empty-host".to_string(),
+            display_name: "Empty Host".to_string(),
+            server_count: 0,
+        };
+        assert_eq!(result.server_count, 0);
+    }
+
+    #[test]
+    fn test_sync_host_result_many_servers() {
+        let result = SyncHostResult {
+            host_name: "full-host".to_string(),
+            display_name: "Full Host".to_string(),
+            server_count: 100,
+        };
+        assert_eq!(result.server_count, 100);
+    }
 }

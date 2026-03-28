@@ -52,4 +52,62 @@ mod tests {
         assert!(!validate_token_format("invalid"));
         assert!(!validate_token_format("hbr_tooshort"));
     }
+
+    #[test]
+    fn test_token_prefix() {
+        let token = generate_bearer_token();
+        assert!(token.starts_with("hbr_"));
+    }
+
+    #[test]
+    fn test_token_hex_chars() {
+        let token = generate_bearer_token();
+        let hex_part = &token[4..]; // after "hbr_"
+        assert!(hex_part.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_validate_empty_string() {
+        assert!(!validate_token_format(""));
+    }
+
+    #[test]
+    fn test_validate_wrong_prefix() {
+        assert!(!validate_token_format("abc_0123456789abcdef0123456789ab"));
+    }
+
+    #[test]
+    fn test_validate_too_long() {
+        assert!(!validate_token_format(
+            "hbr_0123456789abcdef0123456789abextra"
+        ));
+    }
+
+    #[test]
+    fn test_validate_correct_length() {
+        // Exactly 36 chars: "hbr_" (4) + 32 hex chars
+        let valid = "hbr_0123456789abcdef0123456789abcdef";
+        assert_eq!(valid.len(), 36);
+        assert!(validate_token_format(valid));
+    }
+
+    #[test]
+    fn test_generated_tokens_validate() {
+        for _ in 0..10 {
+            let token = generate_bearer_token();
+            assert!(
+                validate_token_format(&token),
+                "Generated token should be valid: {}",
+                token
+            );
+        }
+    }
+
+    #[test]
+    fn test_token_uniqueness_many() {
+        let tokens: std::collections::HashSet<String> =
+            (0..100).map(|_| generate_bearer_token()).collect();
+        // All should be unique
+        assert_eq!(tokens.len(), 100);
+    }
 }

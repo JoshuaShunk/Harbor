@@ -101,3 +101,151 @@ impl RequestLogger {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_log(id: u64, server: &str, tool: &str) -> RequestLog {
+        RequestLog {
+            id,
+            timestamp: Utc::now(),
+            server: server.to_string(),
+            tool: tool.to_string(),
+            input: serde_json::json!({"arg": "value"}),
+            status: RequestStatus::Success,
+            latency_ms: 42,
+            error: None,
+            output: Some(serde_json::json!({"result": "ok"})),
+        }
+    }
+
+    #[test]
+    fn test_request_logger_new() {
+        let logger = RequestLogger::new();
+        assert!(logger.is_empty());
+        assert_eq!(logger.len(), 0);
+    }
+
+    #[test]
+    fn test_request_logger_default() {
+        let logger = RequestLogger::default();
+        assert!(logger.is_empty());
+    }
+
+    #[test]
+    fn test_next_id_increments() {
+        let logger = RequestLogger::new();
+        assert_eq!(logger.next_id(), 0);
+        assert_eq!(logger.next_id(), 1);
+        assert_eq!(logger.next_id(), 2);
+    }
+
+    #[test]
+    fn test_push_and_len() {
+        let logger = RequestLogger::new();
+        logger.push(sample_log(0, "server1", "tool_a"));
+        assert_eq!(logger.len(), 1);
+        assert!(!logger.is_empty());
+
+        logger.push(sample_log(1, "server2", "tool_b"));
+        assert_eq!(logger.len(), 2);
+    }
+
+    #[test]
+    fn test_recent_returns_newest_last() {
+        let logger = RequestLogger::new();
+        logger.push(sample_log(0, "server1", "first"));
+        logger.push(sample_log(1, "server2", "second"));
+        logger.push(sample_log(2, "server3", "third"));
+
+        let recent = logger.recent(2);
+        assert_eq!(recent.len(), 2);
+        assert_eq!(recent[0].tool, "second");
+        assert_eq!(recent[1].tool, "third");
+    }
+
+    #[test]
+    fn test_recent_with_limit_larger_than_entries() {
+        let logger = RequestLogger::new();
+        logger.push(sample_log(0, "server1", "tool_a"));
+        logger.push(sample_log(1, "server2", "tool_b"));
+
+        let recent = logger.recent(100);
+        assert_eq!(recent.len(), 2);
+    }
+
+    #[test]
+    fn test_clear() {
+        let logger = RequestLogger::new();
+        logger.push(sample_log(0, "server1", "tool_a"));
+        logger.push(sample_log(1, "server2", "tool_b"));
+        assert_eq!(logger.len(), 2);
+
+        logger.clear();
+        assert!(logger.is_empty());
+        assert_eq!(logger.len(), 0);
+    }
+
+    #[test]
+    fn test_ring_buffer_evicts_old_entries() {
+        let logger = RequestLogger::new();
+
+        // Push more than MAX_LOG_ENTRIES
+        for i in 0..(MAX_LOG_ENTRIES + 10) {
+            logger.push(sample_log(i as u64, "server", &format!("tool_{}", i)));
+        }
+
+        // Should be capped at MAX_LOG_ENTRIES
+        assert_eq!(logger.len(), MAX_LOG_ENTRIES);
+
+        // First entry should be evicted (tool_0 through tool_9 evicted)
+        let recent = logger.recent(1);
+        assert_eq!(recent[0].tool, format!("tool_{}", MAX_LOG_ENTRIES + 9));
+    }
+
+    #[test]
+    fn test_request_status_serialization() {
+        let success = RequestStatus::Success;
+        let error = RequestStatus::Error;
+
+        assert_eq!(serde_json::to_string(&success).unwrap(), "\"success\"");
+        assert_eq!(serde_json::to_string(&error).unwrap(), "\"error\"");
+    }
+
+    #[test]
+    fn test_request_log_serialization() {
+        let log = sample_log(42, "github", "get_issues");
+        let json = serde_json::to_string(&log).unwrap();
+
+        assert!(json.contains("\"id\":42"));
+        assert!(json.contains("\"server\":\"github\""));
+        assert!(json.contains("\"tool\":\"get_issues\""));
+        assert!(json.contains("\"status\":\"success\""));
+        assert!(json.contains("\"latency_ms\":42"));
+    }
+
+    #[test]
+    fn test_request_log_with_error() {
+        let log = RequestLog {
+            id: 1,
+            timestamp: Utc::now(),
+            server: "test-server".to_string(),
+            tool: "failing_tool".to_string(),
+            input: serde_json::json!({}),
+            status: RequestStatus::Error,
+            latency_ms: 100,
+            error: Some("Something went wrong".to_string()),
+            output: None,
+        };
+
+        let json = serde_json::to_string(&log).unwrap();
+        assert!(json.contains("\"status\":\"error\""));
+        assert!(json.contains("Something went wrong"));
+    }
+
+    #[test]
+    fn test_max_log_entries_constant() {
+        assert_eq!(MAX_LOG_ENTRIES, 500);
+    }
+}

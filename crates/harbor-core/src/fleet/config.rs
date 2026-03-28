@@ -355,4 +355,181 @@ mod tests {
         sc.env.insert("EXTRA".to_string(), "value".to_string());
         assert!(!def.is_equivalent_to(&sc));
     }
+
+    #[test]
+    fn is_equivalent_to_returns_false_when_args_differ() {
+        let def = github_def();
+        let mut sc = def.to_server_config();
+        sc.args.push("--extra-flag".to_string());
+        assert!(!def.is_equivalent_to(&sc));
+    }
+
+    #[test]
+    fn is_equivalent_to_returns_false_when_url_differs() {
+        let mut def = FleetServerDef {
+            description: None,
+            command: None,
+            args: vec![],
+            env: BTreeMap::new(),
+            url: Some("https://original.com".to_string()),
+            headers: None,
+            tool_allowlist: None,
+            tool_blocklist: None,
+        };
+        let sc = def.to_server_config();
+        def.url = Some("https://different.com".to_string());
+        assert!(!def.is_equivalent_to(&sc));
+    }
+
+    #[test]
+    fn is_equivalent_to_returns_false_when_tool_allowlist_differs() {
+        let mut def = github_def();
+        def.tool_allowlist = Some(vec!["tool_a".to_string()]);
+        let sc = def.to_server_config();
+
+        def.tool_allowlist = Some(vec!["tool_b".to_string()]);
+        assert!(!def.is_equivalent_to(&sc));
+    }
+
+    #[test]
+    fn is_equivalent_to_returns_false_when_tool_blocklist_differs() {
+        let mut def = github_def();
+        def.tool_blocklist = Some(vec!["blocked".to_string()]);
+        let sc = def.to_server_config();
+
+        def.tool_blocklist = None;
+        assert!(!def.is_equivalent_to(&sc));
+    }
+
+    #[test]
+    fn fleet_source_constant_value() {
+        assert_eq!(FLEET_SOURCE, "fleet");
+    }
+
+    #[test]
+    fn fleet_meta_default() {
+        let meta = FleetMeta::default();
+        assert!(meta.name.is_none());
+        assert!(meta.description.is_none());
+    }
+
+    #[test]
+    fn fleet_config_default() {
+        let config = FleetConfig::default();
+        assert!(config.servers.is_empty());
+        assert!(config.fleet.name.is_none());
+    }
+
+    #[test]
+    fn fleet_server_def_with_tool_filters() {
+        let def = FleetServerDef {
+            description: Some("Test server".to_string()),
+            command: Some("node".to_string()),
+            args: vec!["server.js".to_string()],
+            env: BTreeMap::new(),
+            url: None,
+            headers: None,
+            tool_allowlist: Some(vec!["tool_a".to_string(), "tool_b".to_string()]),
+            tool_blocklist: Some(vec!["dangerous".to_string()]),
+        };
+
+        let sc = def.to_server_config();
+        assert_eq!(sc.tool_allowlist, def.tool_allowlist);
+        assert_eq!(sc.tool_blocklist, def.tool_blocklist);
+    }
+
+    #[test]
+    fn to_server_config_preserving_updates_tool_filters() {
+        let mut def = github_def();
+        def.tool_allowlist = Some(vec!["new_tool".to_string()]);
+
+        let existing = make_server_config(true, false);
+        let sc = def.to_server_config_preserving(&existing);
+
+        // Tool filters should be updated from fleet def
+        assert_eq!(sc.tool_allowlist, Some(vec!["new_tool".to_string()]));
+        // But tool_hosts should be preserved from existing
+        assert_eq!(sc.tool_hosts, existing.tool_hosts);
+    }
+
+    #[test]
+    fn from_server_config_captures_tool_filters() {
+        let mut sc = make_server_config(true, false);
+        sc.tool_allowlist = Some(vec!["allowed".to_string()]);
+        sc.tool_blocklist = Some(vec!["blocked".to_string()]);
+
+        let def = FleetServerDef::from_server_config(&sc);
+        assert_eq!(def.tool_allowlist, Some(vec!["allowed".to_string()]));
+        assert_eq!(def.tool_blocklist, Some(vec!["blocked".to_string()]));
+    }
+
+    #[test]
+    fn fleet_config_clone() {
+        let mut config = FleetConfig::default();
+        config.fleet.name = Some("my-fleet".to_string());
+        config.servers.insert("test".to_string(), github_def());
+
+        let cloned = config.clone();
+        assert_eq!(cloned.fleet.name, config.fleet.name);
+        assert!(cloned.servers.contains_key("test"));
+    }
+
+    #[test]
+    fn fleet_server_def_clone() {
+        let def = github_def();
+        let cloned = def.clone();
+        assert_eq!(cloned.command, def.command);
+        assert_eq!(cloned.args, def.args);
+        assert_eq!(cloned.env, def.env);
+    }
+
+    #[test]
+    fn remote_server_to_config() {
+        let mut headers = BTreeMap::new();
+        headers.insert(
+            "Authorization".to_string(),
+            "Bearer vault:token".to_string(),
+        );
+
+        let def = FleetServerDef {
+            description: None,
+            command: None,
+            args: vec![],
+            env: BTreeMap::new(),
+            url: Some("https://api.example.com/mcp".to_string()),
+            headers: Some(headers.clone()),
+            tool_allowlist: None,
+            tool_blocklist: None,
+        };
+
+        let sc = def.to_server_config();
+        assert!(sc.command.is_none());
+        assert_eq!(sc.url, Some("https://api.example.com/mcp".to_string()));
+        assert_eq!(sc.headers, Some(headers));
+    }
+
+    #[test]
+    fn is_equivalent_to_returns_false_when_headers_differ() {
+        let mut headers = BTreeMap::new();
+        headers.insert("X-Custom".to_string(), "value1".to_string());
+
+        let def = FleetServerDef {
+            description: None,
+            command: None,
+            args: vec![],
+            env: BTreeMap::new(),
+            url: Some("https://api.example.com".to_string()),
+            headers: Some(headers),
+            tool_allowlist: None,
+            tool_blocklist: None,
+        };
+
+        let mut sc = def.to_server_config();
+        sc.headers
+            .as_mut()
+            .unwrap()
+            .insert("X-Custom".to_string(), "value2".to_string());
+
+        assert!(!def.is_equivalent_to(&sc));
+    }
 }
